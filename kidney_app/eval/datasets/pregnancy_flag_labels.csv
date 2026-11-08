@@ -1,0 +1,2 @@
+nct_id,human_excludes_pregnancy,notes
+NCT00000000,1,"REPLACE: read the trial's exclusion criteria and label 1 if it excludes pregnant or breastfeeding people, else 0"

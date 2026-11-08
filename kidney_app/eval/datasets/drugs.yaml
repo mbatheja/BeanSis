@@ -1,0 +1,16 @@
+# Brand or common name -> expected RxNorm ingredient (lowercase). Checks normalize_drug.
+- {input: Prograf, expected: tacrolimus}
+- {input: CellCept, expected: mycophenolate mofetil}
+- {input: Myfortic, expected: mycophenolic acid}
+- {input: Plaquenil, expected: hydroxychloroquine}
+- {input: Farxiga, expected: dapagliflozin}
+- {input: Jardiance, expected: empagliflozin}
+- {input: Kerendia, expected: finerenone}
+- {input: Zestril, expected: lisinopril}
+- {input: Cozaar, expected: losartan}
+- {input: Procardia, expected: nifedipine}
+- {input: Renvela, expected: sevelamer}
+- {input: Benlysta, expected: belimumab}
+- {input: Lupkynis, expected: voclosporin}
+- {input: Advil, expected: ibuprofen}
+- {input: tacrolimous, expected: tacrolimus, notes: misspelling}

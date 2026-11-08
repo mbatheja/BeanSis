@@ -1,0 +1,22 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    volumes:
+      - ./data:/app/data            # persistent: reference.duckdb (read-only use) + app.db (user data)
+    restart: unless-stopped
+    expose: ["8000"]                # only reachable through Caddy, never directly from the internet
+
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data            # TLS certificates
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  caddy_data:

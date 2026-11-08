@@ -1,0 +1,8 @@
+# Eval settings.
+# prices: USD per million tokens for MODEL_MAIN. Fill in from the official pricing page
+# (https://www.anthropic.com/pricing) for the model you deploy; cost is reported as "–" until set.
+prices:
+  input: null
+  output: null
+  cache_read: null
+  cache_write: null

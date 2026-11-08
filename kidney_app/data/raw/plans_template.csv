@@ -1,0 +1,2 @@
+plan_id,insurer,plan_name,plan_type,state,find_doctor_url,coverage_doc_url
+medi-cal-la-example,Example Medi-Cal plan (replace),Example plan,Medi-Cal managed care,CA,https://example.com/find-a-doctor,https://example.com/sbc.pdf

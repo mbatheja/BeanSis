@@ -1,0 +1,4 @@
+doc_id,collection,title,url,year,pub_type,tags,path,text
+kdigo-ckd-2024,research,KDIGO 2024 Clinical Practice Guideline for CKD,https://kdigo.org/guidelines/ckd-evaluation-and-management/,2024,guideline,"ckd;guideline",pdfs/kdigo_ckd_2024.pdf,
+example-plan-eoc,coverage,Example plan Evidence of Coverage (replace),https://example.com/eoc.pdf,2026,evidence of coverage,"CA;Medi-Cal",pdfs/example_plan_eoc.pdf,
+akf-grants,resource,American Kidney Fund financial assistance,https://www.kidneyfund.org,2026,program,"financial;free",,"The American Kidney Fund offers grants to help eligible kidney patients pay for health insurance premiums and other treatment-related costs. Describe eligibility and how to apply here."
