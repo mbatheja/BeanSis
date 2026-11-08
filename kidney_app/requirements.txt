@@ -1,3 +1,4 @@
+# Optional: only used when LLM_PROVIDER=anthropic is explicitly selected.
 anthropic>=0.40
 # Nebius Token Factory is OpenAI-compatible (LLM_PROVIDER=nebius):
 openai>=1.50

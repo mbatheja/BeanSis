@@ -41,7 +41,7 @@ git apply --check -v ~/kidney_app_new/kidney_app/deploy/deployment_changes.patch
 ```
 - Applies cleanly: `git apply ~/kidney_app_new/kidney_app/deploy/deployment_changes.patch`, then
   review with `git diff`.
-- Fails (your file changed nearby, e.g. the `llm = anthropic.Anthropic()` line in `api.py` was replaced
+- Fails (your file changed nearby, e.g. the `llm = llm_mod.get_client()` line in `api.py` was replaced
   by a Nebius client, which is context for hunk 2): run
   `git apply --reject ~/kidney_app_new/kidney_app/deploy/deployment_changes.patch`.
   It applies every hunk that fits, leaves your lines alone, and writes the ones that don't fit to
@@ -111,7 +111,7 @@ work for a demo, but use a real domain for anything long-lived.)
 ssh ubuntu@<vm-ip>
 git clone <your-repo> ~/kidney_app && cd ~/kidney_app
 bash deploy/setup_vm.sh           # then log out and back in once
-cp .env.example .env && nano .env # ANTHROPIC_API_KEY (or Nebius vars), FDC_API_KEY, DOMAIN,
+cp .env.example .env && nano .env # NEBIUS_API_KEY, FDC_API_KEY, DOMAIN,
                                   # APP_SHARED_SECRET, REMINDER_WEBHOOK_SECRET; leave ALLOWED_ORIGINS empty
 ```
 From your machine: `bash deploy/push_data.sh ubuntu@<vm-ip>`
@@ -138,6 +138,20 @@ curl -i https://api.yourdomain.com/board?user_id=x            # 401: the secret 
 Log in, set a profile, ask one question per tab, pin an answer, add two medications and run the
 interaction check, log a meal, generate a visit sheet, add a medication with a reminder 2 minutes out
 and confirm the email arrives, then use "Delete all my data" and confirm the You tab is empty.
+
+
+## No VM? Run it from your laptop (free, good for a demo)
+1. Install cloudflared once: `winget install --id Cloudflare.cloudflared` (Windows) or see Cloudflare's docs.
+2. `pip install -r requirements.txt`, fill in `.env` (APP_SHARED_SECRET is required), build `data\reference.duckdb`.
+3. Window 1: `powershell -ExecutionPolicy Bypass -File .\run_local.ps1`
+4. Window 2: `cloudflared tunnel --url http://localhost:8000` and copy the `https://...trycloudflare.com` address.
+5. Base44 secret `KIDNEY_API_URL` = that address. Check: `https://<address>/healthz` returns `{"ok": true}`.
+Notes:
+- The address changes every time cloudflared restarts: update `KIDNEY_API_URL` each time.
+- Keep the laptop plugged in with sleep turned off during the demo. Reminders only run while the API runs.
+- Don't add `--allowed-mail` to the tunnel: Base44's server can't pass an email login. The shared secret
+  is what protects the API.
+- Cloudflare labels Quick Tunnels as a testing tool with no uptime promise. Record a backup demo video.
 
 ## Day 2
 - **Update**: `git pull && docker compose up -d --build` (user data on the mounted disk survives).

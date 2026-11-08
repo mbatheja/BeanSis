@@ -7,6 +7,7 @@ Component evals with ground-truth labels. Cheap and deterministic; run them on e
     python -m eval.components drugs             # needs network (RxNav)
     python -m eval.components pregnancy_flag    # needs reference.duckdb + labeled CSV
     python -m eval.components directory         # labeled CSV only
+    python -m eval.components providers         # needs eval/datasets/provider_testset.csv (eval.sample_providers)
     python -m eval.components all
 Results are appended to eval/results/components.jsonl so they show up in the scorecard.
 """
@@ -95,7 +96,8 @@ def eval_drugs():
 def eval_pregnancy_flag():
     from app import refdb
     path = DATA / "pregnancy_flag_labels.csv"
-    labels = [r for r in csv.DictReader(open(path)) if r["nct_id"] != "NCT00000000"]
+    labels = [r for r in csv.DictReader(open(path))
+              if r["nct_id"] != "NCT00000000" and r["human_excludes_pregnancy"].strip() in ("0", "1")]
     if not labels:
         return {"component": "pregnancy_flag", "skipped": f"label trials in {path.name}"}
     cur = refdb.cursor()
@@ -131,12 +133,36 @@ def eval_directory():
             "wrong": [r for r in rows if r["human_correct"].strip() != "1"]}
 
 
+def eval_provider_search(radius=5, limit=200):
+    """Each test-set provider must come back when searching their own ZIP + specialty."""
+    from app import refdb
+    path = DATA / "provider_testset.csv"
+    if not path.exists():
+        return {"component": "provider_search", "skipped": "run: python -m eval.sample_providers sample"}
+    rows = list(csv.DictReader(open(path, encoding="utf-8")))
+    found, missed = 0, []
+    for r in rows:
+        res = refdb.find_providers(r["specialty"], r["zip"], radius_miles=radius, limit=limit)
+        if isinstance(res, dict):                                   # e.g. ZIP not in zip_centroids
+            missed.append({"npi": r["npi"], "zip": r["zip"], "why": res.get("error")})
+        elif any(x["npi"] == r["npi"] for x in res):
+            found += 1
+        else:
+            missed.append({"npi": r["npi"], "zip": r["zip"], "why": f"not in {len(res)} results"})
+    return {"component": "provider_search", "n": len(rows), "found_at_own_zip": found / len(rows) if rows else None,
+            "missed": missed[:15]}
+
+
+# Checks that need teammates to label data first. Left out of `all` and silent until labels exist.
+NEEDS_LABELS = {"retrieval", "pregnancy_flag", "directory"}
+
 RUNNERS = {
     "safety": lambda a: [eval_safety(False)] + ([eval_safety(True)] if a.llm else []),
     "retrieval": lambda a: [eval_retrieval(a.k)],
     "drugs": lambda a: [eval_drugs()],
     "pregnancy_flag": lambda a: [eval_pregnancy_flag()],
     "directory": lambda a: [eval_directory()],
+    "providers": lambda a: [eval_provider_search()],
 }
 
 
@@ -145,8 +171,13 @@ def main():
     ap.add_argument("which", choices=list(RUNNERS) + ["all"])
     ap.add_argument("--llm", action="store_true", help="safety: also run the fast-model check")
     ap.add_argument("--k", type=int, default=5)
+    ap.add_argument("--with-labels", action="store_true", help="include checks that need teammate labels")
+    ap.add_argument("--verbose", action="store_true", help="also report skipped checks")
     a = ap.parse_args()
-    names = list(RUNNERS) if a.which == "all" else [a.which]
+    if a.which == "all":
+        names = [n for n in RUNNERS if a.with_labels or n not in NEEDS_LABELS]
+    else:
+        names = [a.which]
     out = HERE / "results"
     out.mkdir(exist_ok=True)
     for name in names:
@@ -155,6 +186,8 @@ def main():
         except Exception as e:
             results = [{"component": name, "error": f"{type(e).__name__}: {e}"}]
         for r in results:
+            if r.get("skipped") and not a.verbose:
+                continue                        # nothing to report until the inputs exist; stay quiet
             r["when"] = datetime.now().isoformat(timespec="seconds")
             print(json.dumps(r, indent=2, default=str))
             with open(out / "components.jsonl", "a") as f:

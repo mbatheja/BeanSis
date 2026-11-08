@@ -1,4 +1,5 @@
 """Per-tab agent definitions. Each tab = its own system prompt + a scoped tool set."""
+from datetime import date
 
 SHARED_RULES = """
 You are part of a patient-education app for women living with kidney disease, including those who are
@@ -61,6 +62,8 @@ was found; say the check is limited and to confirm with her pharmacist. Never su
 Use search_documents with collection='coverage' for plan benefit questions and collection='resource' for
 free/low-cost programs and support groups. Use search_trials for research studies; mention when a trial
 excludes pregnancy or breastfeeding. Prefer free and low-cost options and say who is eligible.
+Each trial's excludes_pregnancy is approximate: true = excludes pregnancy/breastfeeding, false = recruits
+pregnant participants, null = not stated in the eligibility criteria (the full protocol may still exclude).
 For rides to dialysis, prenatal visits, other appointments, or the pharmacy, use ride_help: call it with what
 you know, ask the ONE question it returns, then call it again with the answer added, until it returns a card.
 Present the card's contact, call script, requirements, and fallbacks; never make up a phone number.
@@ -83,7 +86,18 @@ def system_prompt(tab, profile, thread_summary=None):
     parts = [SHARED_RULES.strip(), cfg["prompt"].strip()]
     dynamic = []
     if profile:
-        dynamic.append("User profile: " + "; ".join(f"{k}={v}" for k, v in profile.items() if v not in (None, "")))
+        context_fields = ("zip", "plan_id", "state", "kidney_disease_type", "ckd_stage", "life_stage",
+                          "dialysis", "transplant", "transplant_status", "nutrition_targets")
+        context = [f"{k}={profile[k]}" for k in context_fields if profile.get(k) not in (None, "")]
+        try:
+            born = date.fromisoformat(profile.get("birth_date", ""))
+            age = (date.today() - born).days // 365
+            if 0 <= age < 120:
+                context.append(f"age={age}")
+        except (TypeError, ValueError):
+            pass
+        if context:
+            dynamic.append("User profile: " + "; ".join(context))
     if thread_summary:
         dynamic.append("Earlier in this conversation: " + thread_summary)
     return parts, "\n".join(dynamic)

@@ -54,14 +54,33 @@ def fetch_studies(condition, statuses=("RECRUITING", "NOT_YET_RECRUITING"), page
 
 
 # ---------------------------------------------------------------- flatten
+_PREG = re.compile(r"pregnan|breast-?feed|lactat|nursing", re.IGNORECASE)
+_NOT_PREG = re.compile(r"\b(not|non)[- ]?(be )?(currently )?(pregnant|breast-?feeding|lactating|nursing)"
+                       r"|negative (serum |urine )?pregnancy test|must not be pregnant", re.IGNORECASE)
+
+
+# contraception / pregnancy-avoidance requirements keep pregnant people out, even in the inclusion section
+_AVOID = re.compile(r"contracept|risk of pregnancy|avoid(ing)? pregnancy|prevent(ing)? pregnancy|"
+                    r"childbearing potential", re.IGNORECASE)
+# affirmative wording: pregnant people are the population being recruited
+_TARGET = re.compile(r"\bpregnant (women|people|persons|individuals|participants|patients|adults)|currently pregnant"
+                     r"|weeks'? (of )?gestation|gestational age|singleton pregnanc", re.IGNORECASE)
+
+
 def _excludes_pregnancy(criteria):
-    """Heuristic: does the EXCLUSION section mention pregnancy? (Label as heuristic in the UI.)"""
-    if not criteria:
+    """Heuristic, three-valued (label it as approximate in the UI):
+       True  = excludes pregnancy/breastfeeding: mentioned in the exclusion section, OR the inclusion
+               section requires not being pregnant ("not pregnant", "negative pregnancy test") or requires
+               contraception / avoiding pregnancy
+       False = inclusion criteria recruit pregnant people affirmatively ("pregnant women", gestational age)
+       None  = eligibility criteria don't mention pregnancy (not stated; the protocol may still exclude)"""
+    if not criteria or not _PREG.search(criteria):
         return None
     parts = re.split(r"exclusion criteria", criteria, maxsplit=1, flags=re.IGNORECASE)
-    if len(parts) < 2:
-        return None
-    return bool(re.search(r"pregnan|breast-?feeding|lactat", parts[1], re.IGNORECASE))
+    inclusion, exclusion = parts[0], (parts[1] if len(parts) > 1 else "")
+    if _PREG.search(exclusion) or _NOT_PREG.search(inclusion) or _AVOID.search(inclusion):
+        return True
+    return False if _TARGET.search(inclusion) else None
 
 
 def flatten_study(study):
@@ -192,7 +211,47 @@ def search_trials(query, lat=None, lon=None, radius_miles=50, women_eligible=Tru
     return [dict(zip(cols, r)) for r in rows]
 
 
+def build_from_export(path):
+    """Load a JSON export from the ClinicalTrials.gov website (Download -> JSON), no API calls."""
+    import json
+    trials, sites, seen = [], [], set()
+    for study in json.load(open(path, encoding="utf-8")):
+        t, st = flatten_study(study)
+        if t["nct_id"] and t["nct_id"] not in seen:
+            seen.add(t["nct_id"])
+            trials.append(t)
+            sites.extend(st)
+    return trials, sites
+
+
+def write_db(trials, sites):
+    import duckdb
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    DATA_DIR.mkdir(exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(trials), DATA_DIR / "trials.parquet")
+    pq.write_table(pa.Table.from_pylist(sites), DATA_DIR / "trial_sites.parquet")
+    con = duckdb.connect(str(DB_PATH))
+    con.sql("INSTALL fts; LOAD fts;")
+    con.sql(f"CREATE OR REPLACE TABLE trials AS SELECT * FROM '{DATA_DIR / 'trials.parquet'}'")
+    con.sql(f"CREATE OR REPLACE TABLE trial_sites AS SELECT * FROM '{DATA_DIR / 'trial_sites.parquet'}'")
+    con.sql("PRAGMA create_fts_index('trials', 'nct_id', 'title', 'conditions_text', 'brief_summary', overwrite=1)")
+    con.close()
+    print(f"Loaded {len(trials)} trials, {len(sites)} sites into {DB_PATH}")
+
+
 if __name__ == "__main__":
-    build()
-    for r in search_trials("lupus nephritis", lat=34.0522, lon=-118.2437, radius_miles=100):
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--from-json", help="ClinicalTrials.gov website export (JSON) instead of the API")
+    a = ap.parse_args()
+    if a.from_json:
+        t, st = build_from_export(a.from_json)
+        flags = [x["excludes_pregnancy"] for x in t]
+        print(f"pregnancy flag: excludes {flags.count(True)}, includes {flags.count(False)}, "
+              f"not stated {flags.count(None)}")
+        write_db(t, st)
+    else:
+        build()
+    for r in search_trials("kidney", lat=34.0522, lon=-118.2437, radius_miles=50):
         print(r)

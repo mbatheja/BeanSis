@@ -100,6 +100,20 @@ def test_tool_wrapper_citations_and_notice():
     assert presentation.TOOL_NOTICES["drug_signal_profile"] in shown["notices"]
 
 
+def test_missing_reviews_table_falls_back_to_label_and_faers():
+    stub()
+    reviews.drug_names = lambda d: (["prograf", "tacrolimus"], "tacrolimus")
+
+    def no_table(names, con=None):
+        raise RuntimeError("IO Error: Cannot open file data/reference.duckdb")
+    reviews.reviews_for = no_table
+    out = signals.drug_signal_profile({"drug": "Prograf"}, {})
+    prof = out["results"]
+    assert prof["sample"]["reviews_in_group"] == 0 and prof["sample"]["label_found"] is True
+    assert {s["theme"] for s in prof["signals"]} >= {"tremor or shaking", "diarrhea"}   # label + FAERS still compared
+    assert not any(x["source_id"].startswith("REVIEWS:") for x in out["sources"])      # no review citation invented
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
