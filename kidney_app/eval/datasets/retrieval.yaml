@@ -1,0 +1,11 @@
+# Retrieval set for search_documents. Fill relevant_doc_ids with doc_ids from YOUR manifest.
+# A hit = any chunk from a relevant doc in the top k.
+- query: preeclampsia risk in chronic kidney disease
+  collection: research
+  relevant_doc_ids: [REPLACE_ME]
+- query: anemia fatigue CKD women
+  collection: research
+  relevant_doc_ids: [REPLACE_ME]
+- query: help paying for dialysis costs
+  collection: resource
+  relevant_doc_ids: [REPLACE_ME]

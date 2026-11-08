@@ -1,0 +1,14 @@
+# Multi-turn scenarios run in order against one user, testing memory across turns and tabs.
+- id: mem-cross-tab-recall
+  persona: transplant_planning
+  steps:
+    - {tab: medications, question: "Is tacrolimus safe during pregnancy?"}
+    - {tab: resources, question: "Remind me what I found earlier about that transplant drug.",
+       expected_tools: [recall_memory], must_include: ["Refers to the earlier tacrolimus findings"]}
+
+- id: mem-same-thread-followup
+  persona: pregnant_ckd3
+  steps:
+    - {tab: symptoms, question: "What are signs of preeclampsia?"}
+    - {tab: symptoms, same_thread: true, question: "Which of those mean I should call right away?",
+       must_include: ["Answers in terms of the warning signs discussed in the previous turn"]}

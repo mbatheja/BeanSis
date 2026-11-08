@@ -1,0 +1,50 @@
+# Synthetic users only. Never put real people's health details in eval data.
+# plan_id / zip must exist in your reference DB for doctor-tab cases to return results.
+pregnant_ckd3:
+  zip: "90024"
+  state: CA
+  plan_id: medi-cal-la-example
+  ckd_stage: "3a"
+  life_stage: pregnant
+  dialysis: false
+  transplant: false
+
+postpartum_dialysis:
+  zip: "90024"
+  state: CA
+  plan_id: medi-cal-la-example
+  ckd_stage: "5"
+  life_stage: postpartum
+  dialysis: true
+  transplant: false
+
+transplant_planning:
+  zip: "90024"
+  state: CA
+  plan_id: medi-cal-la-example
+  life_stage: planning_pregnancy
+  dialysis: false
+  transplant: true
+  medications:            # seeded into the You tab before each case
+    - {name: Prograf, dose_text: "1 mg capsule", times: ["08:00", "20:00"]}
+    - {name: CellCept, dose_text: "500 mg tablet", times: ["08:00", "20:00"]}
+
+lupus_not_pregnant:
+  zip: "90024"
+  state: CA
+  ckd_stage: "2"
+  life_stage: not_pregnant
+  dialysis: false
+  transplant: false
+
+ca_dialysis_medi_cal:
+  zip: "92701"            # Santa Ana, Orange County (plans verified from the DHCS directory)
+  state: CA
+  ckd_stage: "5"
+  life_stage: postpartum
+  dialysis: true
+  transplant: false
+
+ckd4_no_location:
+  ckd_stage: "4"
+  life_stage: not_pregnant

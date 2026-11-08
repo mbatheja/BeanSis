@@ -1,0 +1,12 @@
+.env
+.venv
+.git
+.claude/
+data/
+eval/results/
+tests/
+base44/
+deploy/
+**/__pycache__
+*.pyc
+*.md

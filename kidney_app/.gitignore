@@ -1,0 +1,31 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Generated data, caches, backups, and user health data (never commit)
+data/*
+!data/raw/
+
+# Raw input files (large or licensed); keep the templates and the team-curated lists
+data/raw/*
+!data/raw/*_template.csv
+!data/raw/resources_manifest.csv
+!data/raw/literature.csv
+!data/raw/ca_medi_cal_plans.csv
+!data/raw/ca_medi_cal_plans_README.md
+
+# Eval run outputs
+eval/results/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

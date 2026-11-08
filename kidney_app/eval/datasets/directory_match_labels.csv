@@ -1,0 +1,2 @@
+plan_id,source_file,directory_name,directory_zip,matched_npi,human_correct,notes
+medi-cal-la-example,example.pdf,Jane Doe,90024,1234567890,1,"REPLACE: 1 if matched_npi is the same person, else 0"
