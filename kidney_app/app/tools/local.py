@@ -36,23 +36,46 @@ def list_plans(args, ctx):
 def find_providers(args, ctx):
     prof = ctx["profile"]
     zip_code = args.get("zip") or prof.get("zip")
-    if not zip_code:
-        return {"results": {"error": "Need a ZIP code. Ask the user for it."}, "sources": []}
     plan_id = args.get("plan_id") or prof.get("plan_id")
+    plan = refdb.plan_by_id(plan_id) if plan_id else None
+    verify_url = plan.get("find_doctor_url") if plan else None
+    if not zip_code:
+        return {"results": {"error": "Need a ZIP code. Ask the user for it.", "providers": [],
+                            "plan": plan, "verify_url": verify_url},
+                "sources": _plan_source(plan)}
     rows = refdb.find_providers(args["specialty"], zip_code, plan_id=plan_id,
                                 radius_miles=args.get("radius_miles", 25), limit=args.get("limit", 10))
-    if isinstance(rows, dict):          # error
-        return {"results": rows, "sources": []}
-    plan = refdb.plan_by_id(plan_id) if plan_id else None
+    if isinstance(rows, dict):
+        ctx["provider_search"] = {"provider_count": 0, "plan": plan,
+                                  "verify_url": verify_url, "zip": zip_code,
+                                  "specialty": args["specialty"],
+                                  "directory_loaded": rows.get("directory_loaded", True)}
+        return {"results": {**rows, "plan": plan, "verify_url": verify_url},
+                "sources": _plan_source(plan)}
+    ctx["provider_search"] = {"provider_count": len(rows), "plan": plan,
+                              "verify_url": verify_url, "zip": zip_code,
+                              "specialty": args["specialty"]}
     return {"results": {
                 "providers": rows,
                 "plan": plan,
                 # Guardrail: directories go stale. Always surface the date and the insurer's live tool.
                 "verify_note": ("Network status comes from the insurer directory dated in each row. "
                                 "Confirm with the insurer and the office before booking."),
-                "verify_url": plan.get("find_doctor_url") if plan else None},
+                "verify_url": verify_url,
+                "directory_loaded": refdb.table_exists("provider_network"),
+                "fallback_message": ("No matching providers were found in the loaded directory. Use the insurer's "
+                                     "official provider search to check current availability." if not rows and verify_url else None)},
             "sources": [{"source_id": f"NPI:{r['npi']}", "title": r["name"],
-                         "url": f"https://npiregistry.cms.hhs.gov/provider-view/{r['npi']}"} for r in rows]}
+                         "url": f"https://npiregistry.cms.hhs.gov/provider-view/{r['npi']}"} for r in rows]
+                       + _plan_source(plan)}
+
+
+def _plan_source(plan):
+    if not plan or not plan.get("find_doctor_url"):
+        return []
+    return [{"source_id": f"PLAN:{plan['plan_id']}",
+             "title": f"{plan.get('insurer', 'Insurer')} provider search",
+             "url": plan["find_doctor_url"]}]
 
 
 def check_my_interactions(args, ctx):

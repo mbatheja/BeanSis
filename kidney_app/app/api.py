@@ -317,6 +317,11 @@ def ride(body: RideIn):
 
 
 # ====================================================================== You tab
+@app.get("/you/visit-types")
+def visit_types():
+    return visit_prep_mod.VISIT_TYPES
+
+
 @app.get("/you/{user_id}")
 def you_overview(user_id: str):
     """Everything the You tab opens with: board, today's doses, today's nutrition."""
@@ -421,15 +426,11 @@ def nutrition(user_id: str, day_from: str, day_to: Optional[str] = None):
 
 class VisitPrepIn(BaseModel):
     user_id: str
-    visit_type: str                     # pcp | obgyn | nephrology | maternal_fetal_medicine
+    visit_type: str                     # pcp | obgyn | nephrology | maternal_fetal_medicine | other
+    visit_type_other: Optional[str] = None
     concerns: Optional[str] = None      # what she wants to bring up, in her words
     days: int = 30                      # how far back to look at her logs and questions
     save: bool = False                  # also pin the sheet to her board
-
-
-@app.get("/you/visit-types")
-def visit_types():
-    return visit_prep_mod.VISIT_TYPES
 
 
 @app.post("/you/visit-prep")
@@ -437,9 +438,13 @@ def visit_prep(body: VisitPrepIn):
     """Visit sheet: facts from her own data (code-built) + a validated question list (model-written)."""
     try:
         sheet = visit_prep_mod.generate(store, llm, body.user_id, body.visit_type, body.concerns,
-                                        max(7, min(body.days, 90)))
+                                        max(7, min(body.days, 90)), visit_type_other=body.visit_type_other)
     except ValueError as e:
         raise HTTPException(422, str(e))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("Visit prep generation failed for user %s", body.user_id)
+        raise HTTPException(503, "Visit prep is temporarily unavailable. Your other sections are still available.") from e
     if body.save:
         sheet["pin_id"] = store.pin_snapshot(
             body.user_id, "you", f"Visit prep: {sheet['visit_label']} ({sheet['generated_at'][:10]})",

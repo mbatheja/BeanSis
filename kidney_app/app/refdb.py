@@ -11,6 +11,7 @@ Tables (see ingest/ for loaders):
   zip_centroids(zip, lat, lon)
 """
 import threading
+import csv
 
 from . import config
 
@@ -37,6 +38,21 @@ def _rows(cur):
     return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
+def _plans_csv():
+    """Read payer metadata directly when the reference DB has not been rebuilt yet."""
+    path = config.DATA_DIR / "raw" / "plans.csv"
+    if not path.exists():
+        return []
+    with path.open(newline="", encoding="utf-8-sig") as f:
+        return list(csv.DictReader(f))
+
+
+def table_exists(name, con=None):
+    cur = con or cursor()
+    cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [name])
+    return bool(cur.fetchone()[0])
+
+
 def search_documents(query, collection=None, min_year=None, limit=8, con=None):
     """BM25 search over chunked documents, optionally within one collection."""
     cur = con or cursor()
@@ -60,11 +76,14 @@ def search_documents(query, collection=None, min_year=None, limit=8, con=None):
 
 def list_plans(state=None, con=None):
     cur = con or cursor()
-    if state:
-        cur.execute("SELECT * FROM plans WHERE state = ? OR state IS NULL ORDER BY insurer", [state])
-    else:
-        cur.execute("SELECT * FROM plans ORDER BY insurer")
-    return _rows(cur)
+    if table_exists("plans", cur):
+        if state:
+            cur.execute("SELECT * FROM plans WHERE state = ? OR state IS NULL ORDER BY insurer", [state])
+        else:
+            cur.execute("SELECT * FROM plans ORDER BY insurer")
+        return _rows(cur)
+    rows = _plans_csv()
+    return [r for r in rows if not state or not r.get("state") or r["state"] == state]
 
 
 def zip_to_point(zip_code, con=None):
@@ -80,6 +99,9 @@ def find_providers(specialty, zip_code, plan_id=None, radius_miles=25, limit=10,
     If plan_id is given, only providers found in that plan's directory are returned.
     """
     cur = con or cursor()
+    if plan_id and not table_exists("provider_network", cur):
+        return {"error": "Provider directories have not been loaded into the reference database.",
+                "directory_loaded": False, "providers": []}
     point = zip_to_point(zip_code, con=cur)
     if point is None:
         return {"error": f"Unknown ZIP code {zip_code}"}
@@ -106,6 +128,9 @@ def find_providers(specialty, zip_code, plan_id=None, radius_miles=25, limit=10,
 
 def plan_by_id(plan_id, con=None):
     cur = con or cursor()
-    cur.execute("SELECT * FROM plans WHERE plan_id = ?", [plan_id])
-    rows = _rows(cur)
+    if table_exists("plans", cur):
+        cur.execute("SELECT * FROM plans WHERE plan_id = ?", [plan_id])
+        rows = _rows(cur)
+    else:
+        rows = [r for r in _plans_csv() if r.get("plan_id") == plan_id]
     return rows[0] if rows else None

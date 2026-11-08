@@ -14,6 +14,11 @@ export default function ProfileQuestions({ p, set, plans, required = false }) {
   const otherPlan = p.insurance_other || (!knownPlan && p.plan_id && !["none", "unknown", "other"].includes(p.plan_id) ? p.plan_id : "");
   const transplantStatus = p.transplant_status || (p.transplant ? "had_transplant" : "");
   const dialysisValue = p.dialysis === true ? "yes" : p.dialysis === false ? "no" : "";
+  // A transplant waitlist is for chronic kidney failure; acute kidney injury is not a useful
+  // disease-type choice in that context. Keep the other underlying diagnoses available.
+  const diseaseTypes = transplantStatus === "waitlist"
+    ? DISEASE_TYPES.filter(([value]) => value !== "aki")
+    : DISEASE_TYPES;
 
   return (
     <>
@@ -31,20 +36,29 @@ export default function ProfileQuestions({ p, set, plans, required = false }) {
         </select>
       </label>
       {planChoice === "other" && <label>Insurance plan name<input value={otherPlan} onChange={(e) => set("insurance_other", e.target.value)} required={required} /></label>}
-      <label>Kidney disease type<select value={p.kidney_disease_type || ""} onChange={(e) => set("kidney_disease_type", e.target.value)} required={required}>
-        <option value="">Choose one</option>{DISEASE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-      </select></label>
-      {p.kidney_disease_type === "ckd" && <label>Chronic kidney disease stage<select value={p.ckd_stage || ""} onChange={(e) => set("ckd_stage", e.target.value)} required={required}>
-        <option value="">Choose one</option>{STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
-      </select></label>}
-      <label>Are you on dialysis?<select value={dialysisValue} onChange={(e) => set("dialysis", e.target.value === "" ? null : e.target.value === "yes")} required={required}>
-        <option value="">Choose one</option><option value="yes">Yes</option><option value="no">No</option>
-      </select></label>
       <label>Kidney transplant status<select value={transplantStatus} onChange={(e) => {
-        set("transplant_status", e.target.value); set("transplant", e.target.value === "had_transplant");
+        const nextStatus = e.target.value;
+        set("transplant_status", nextStatus); set("transplant", nextStatus === "had_transplant");
+        if (nextStatus === "waitlist" && p.kidney_disease_type === "aki") set("kidney_disease_type", "");
       }} required={required}>
         <option value="">Choose one</option><option value="none">No transplant</option>
         <option value="had_transplant">I’ve had a transplant</option><option value="waitlist">I’m on the transplant list</option>
+        <option value="unknown">Not sure</option>
+      </select></label>
+      {transplantStatus && <>
+        <label>Kidney disease type<select value={p.kidney_disease_type || ""} onChange={(e) => {
+          const type = e.target.value;
+          set("kidney_disease_type", type);
+          if (type !== "ckd") set("ckd_stage", "");
+        }} required={required}>
+          <option value="">Choose one</option>{diseaseTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
+        {p.kidney_disease_type === "ckd" && <label>Chronic kidney disease stage<select value={p.ckd_stage || ""} onChange={(e) => set("ckd_stage", e.target.value)} required={required}>
+          <option value="">Choose one</option>{STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+        </select></label>}
+      </>}
+      <label>Are you on dialysis?<select value={dialysisValue} onChange={(e) => set("dialysis", e.target.value === "" ? null : e.target.value === "yes")} required={required}>
+        <option value="">Choose one</option><option value="yes">Yes</option><option value="no">No</option>
       </select></label>
       <label>Pregnancy goals<select value={p.life_stage || ""} onChange={(e) => set("life_stage", e.target.value)} required={required}>
         <option value="">Choose one</option><option value="pregnant">Already pregnant</option>

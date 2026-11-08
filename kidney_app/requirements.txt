@@ -1,20 +1,22 @@
-# Optional: only used when LLM_PROVIDER=anthropic is explicitly selected.
+# Optional provider: loaded only when LLM_PROVIDER=anthropic is explicitly selected.
 anthropic>=0.40
-# Nebius Token Factory is OpenAI-compatible (LLM_PROVIDER=nebius):
+# Default provider: Nebius Token Factory is OpenAI-compatible (LLM_PROVIDER=nebius).
 openai>=1.50
+# API runtime
 fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2
 requests>=2.31
 duckdb>=1.1
+# Reference-data ingestion
 pandas>=2
 pyarrow>=15
 pdfplumber>=0.11
-# eval/ loads its datasets and config from YAML:
+# Evaluation and development
 pyyaml>=6
-# zoneinfo (user timezones for medication reminders) needs this on Windows:
+pytest>=8
+# Windows timezone database for profile and medication reminders
 tzdata>=2024.1
 # Postgres for app state in deployment (sqlite is used locally by default):
 sqlalchemy>=2
 psycopg[binary]>=3.1
-pytest>=8
