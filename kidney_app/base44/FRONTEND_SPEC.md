@@ -1,3 +1,5 @@
+> Superseded: the frontend is now built as code in `src/` (see FRONTEND.md). Kept as a description.
+
 # Frontend spec for Base44 (paste into the Base44 builder)
 
 Build a mobile-first web app for women living with kidney disease (including pregnant, postpartum, and

@@ -1,0 +1,13 @@
+{
+  // Base44 project config. Frontend = this folder's Vite app; backend functions live in base44/functions.
+  "name": "Kidney Women's Health",
+  "description": "Sourced answers, medication support, and California resources for women with kidney disease.",
+  "visibility": "public",            // anyone can reach the sign-in page; every screen requires sign-in
+  "functionsDir": "./functions",
+  "site": {
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "serveCommand": "npm run dev",
+    "outputDirectory": "./dist"
+  }
+}

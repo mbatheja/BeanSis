@@ -15,6 +15,15 @@ from datetime import datetime, timedelta, timezone
 from . import config
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id     TEXT PRIMARY KEY,
+    username    TEXT NOT NULL,
+    username_key TEXT NOT NULL UNIQUE,
+    password_salt TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    onboarding_complete INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS profiles (
     user_id     TEXT PRIMARY KEY,
     data        TEXT NOT NULL,              -- JSON: plan_id, zip, ckd_stage, life_stage, dialysis, transplant
@@ -110,7 +119,9 @@ CREATE TABLE IF NOT EXISTS meals (
 CREATE INDEX IF NOT EXISTS ix_meals_user_day ON meals (user_id, day);
 """
 
-PROFILE_FIELDS = ("plan_id", "zip", "ckd_stage", "life_stage", "dialysis", "transplant", "state",
+PROFILE_FIELDS = ("name", "birth_date", "plan_id", "insurance_other", "zip", "kidney_disease_type",
+                  "ckd_stage", "life_stage", "dialysis", "transplant", "transplant_status",
+                  "primary_language", "onboarding_complete", "state",
                   "timezone",            # IANA name, e.g. "America/Los_Angeles" (for reminder times)
                   "nutrition_targets")   # optional, entered by the user from her care team / dietitian
 STOPWORDS = set("""a an and are as at be but by can do does for from have how i if in is it me my of on or
@@ -155,6 +166,28 @@ class Store:
             return [dict(r) for r in res.mappings().all()] if res.returns_rows else []
 
     # ------------------------------------------------------------ profile
+    def create_user(self, username, username_key, password_salt, password_hash):
+        user_id = str(uuid.uuid4())
+        self._exec("INSERT INTO users (user_id, username, username_key, password_salt, password_hash, created_at) "
+                   "VALUES (:id, :name, :key, :salt, :hash, :now)",
+                   {"id": user_id, "name": username, "key": username_key, "salt": password_salt,
+                    "hash": password_hash, "now": _now()})
+        return user_id
+
+    def get_user_by_username(self, username_key):
+        rows = self._exec("SELECT user_id, username, password_salt, password_hash, onboarding_complete "
+                          "FROM users WHERE username_key = :key", {"key": username_key})
+        return rows[0] if rows else None
+
+    def get_user(self, user_id):
+        rows = self._exec("SELECT user_id, username, onboarding_complete FROM users WHERE user_id = :id",
+                          {"id": user_id})
+        return rows[0] if rows else None
+
+    def set_onboarding_complete(self, user_id, complete=True):
+        self._exec("UPDATE users SET onboarding_complete = :complete WHERE user_id = :id",
+                   {"complete": int(bool(complete)), "id": user_id})
+
     def get_profile(self, user_id):
         rows = self._exec("SELECT data FROM profiles WHERE user_id = :u", {"u": user_id})
         return json.loads(rows[0]["data"]) if rows else {}

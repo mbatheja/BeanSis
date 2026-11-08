@@ -32,6 +32,7 @@ const ROUTES: Route[] = [
   { method: "GET", pattern: /^\/saved$/ },
   { method: "GET", pattern: /^\/recall$/ },
   { method: "GET", pattern: /^\/retention$/ },
+  { method: "GET", pattern: /^\/plans$/ },
   { method: "DELETE", pattern: /^\/users\/\{me\}\/data$/ },
   { method: "GET", pattern: /^\/you\/\{me\}$/ },
   { method: "GET", pattern: /^\/you\/visit-types$/ },

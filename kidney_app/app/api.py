@@ -5,6 +5,9 @@ Hackathon note: user_id is passed by the client. Before real users, replace with
 (e.g. Supabase Auth) and derive user_id from the verified token.
 """
 import os
+import hashlib
+import hmac
+import secrets
 import threading
 import time
 from typing import Optional
@@ -18,7 +21,7 @@ from .you import meds as meds_mod
 from .you import nutrition as nutrition_mod
 from .you import visit_prep as visit_prep_mod
 
-app = FastAPI(title="Kidney Women's Health API")
+app = FastAPI(title="Bean Sis API")
 # The browser never calls this API directly (it goes through the Base44 proxy), so CORS is closed unless
 # ALLOWED_ORIGINS is set, e.g. for local frontend development.
 _origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
@@ -45,7 +48,67 @@ def healthz():
     return {"ok": True}
 
 store = appstate.Store()
-llm = llm_mod.get_client()   # LLM_PROVIDER: anthropic (ANTHROPIC_API_KEY) or nebius (NEBIUS_API_KEY)
+
+try:                                   # Windows has no time-zone database unless `pip install tzdata` was run
+    from zoneinfo import ZoneInfo as _ZI
+    _ZI(config.DEFAULT_TIMEZONE)
+except Exception:
+    print("WARNING: time-zone data is missing, so reminders, today's doses, and saving a profile will fail. "
+          "Fix: pip install tzdata")
+llm = llm_mod.get_client()   # Defaults to Nebius; Anthropic requires LLM_PROVIDER=anthropic.
+
+
+def _local_auth_only():
+    # Dummy accounts are for the loopback-only local prototype, not deployed authentication.
+    if os.getenv("APP_SHARED_SECRET"):
+        raise HTTPException(404, "not found")
+
+
+def _password_hash(password, salt):
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), 310_000).hex()
+
+
+@app.post("/auth/register")
+def register(body: AuthIn):
+    _local_auth_only()
+    username = body.username.strip()
+    username_key = username.casefold()
+    if not username or len(username) > 64:
+        raise HTTPException(422, "Username must be 1–64 characters.")
+    if not body.password or len(body.password) > 128:
+        raise HTTPException(422, "Password must be 1–128 characters.")
+    if store.get_user_by_username(username_key):
+        raise HTTPException(409, "That username is already in use. Sign in or choose another.")
+    salt = secrets.token_hex(16)
+    try:
+        user_id = store.create_user(username, username_key, salt, _password_hash(body.password, salt))
+    except Exception:
+        if store.get_user_by_username(username_key):
+            raise HTTPException(409, "That username is already in use. Sign in or choose another.")
+        raise
+    return {"id": user_id, "username": username, "is_new": True, "onboarding_complete": False}
+
+
+@app.post("/auth/login")
+def login(body: AuthIn):
+    _local_auth_only()
+    row = store.get_user_by_username(body.username.strip().casefold())
+    if not row or not hmac.compare_digest(_password_hash(body.password, row["password_salt"]), row["password_hash"]):
+        raise HTTPException(401, "Username or password is incorrect.")
+    complete = bool(row["onboarding_complete"])
+    return {"id": row["user_id"], "username": row["username"], "is_new": not complete,
+            "onboarding_complete": complete}
+
+
+@app.get("/auth/me")
+def local_me(user_id: str):
+    _local_auth_only()
+    row = store.get_user(user_id)
+    if not row:
+        raise HTTPException(401, "Sign in to continue.")
+    complete = bool(row["onboarding_complete"])
+    return {"id": row["user_id"], "username": row["username"], "is_new": not complete,
+            "onboarding_complete": complete}
 
 
 def _purge_loop():
@@ -80,14 +143,26 @@ class ChatIn(BaseModel):
     thread_id: Optional[str] = None
 
 
+class AuthIn(BaseModel):
+    username: str
+    password: str
+
+
 class ProfileIn(BaseModel):
+    name: Optional[str] = None
+    birth_date: Optional[str] = None
     plan_id: Optional[str] = None
+    insurance_other: Optional[str] = None
     zip: Optional[str] = None
+    kidney_disease_type: Optional[str] = None
     state: Optional[str] = None
     ckd_stage: Optional[str] = None
     life_stage: Optional[str] = None      # e.g. pregnant, postpartum, planning, not_applicable
     dialysis: Optional[bool] = None
     transplant: Optional[bool] = None
+    transplant_status: Optional[str] = None
+    primary_language: Optional[str] = None
+    onboarding_complete: Optional[bool] = None
     timezone: Optional[str] = None            # IANA, e.g. "America/Los_Angeles"
     nutrition_targets: Optional[dict] = None  # from her care team, e.g. {"sodium_mg": 2000, "fluids_ml": 1500}
 
@@ -126,6 +201,16 @@ def thread_messages(thread_id: str, user_id: str):
     return store.get_messages(thread_id, with_meta=True)   # includes citations + guardrails per answer
 
 
+@app.get("/plans")
+def plans(user_id: str, state: Optional[str] = "CA"):
+    """Insurance plans with loaded directories, for the profile's plan picker."""
+    from . import refdb
+    try:
+        return refdb.list_plans(state=state)
+    except Exception:
+        return []          # reference DB not built yet: the picker falls back to free text
+
+
 @app.get("/profile/{user_id}")
 def get_profile(user_id: str):
     return store.get_profile(user_id)
@@ -144,7 +229,10 @@ def put_profile(user_id: str, body: ProfileIn):
             ZoneInfo(body.timezone)
         except Exception:
             raise HTTPException(422, "timezone must be an IANA name like America/Los_Angeles")
-    return store.update_profile(user_id, body.model_dump(exclude_none=True))
+    profile = store.update_profile(user_id, body.model_dump(exclude_none=True))
+    if body.onboarding_complete is not None:
+        store.set_onboarding_complete(user_id, body.onboarding_complete)
+    return profile
 
 
 class PinIn(BaseModel):

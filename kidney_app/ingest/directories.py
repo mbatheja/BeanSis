@@ -7,7 +7,7 @@ Every insurer formats directories differently, so instead of one brittle parser:
   3. rows are matched to NPPES providers by NPI, else name + ZIP
 Unmatched rows go to directory_unmatched for manual review.
 
-Usage (run once per directory PDF; needs ANTHROPIC_API_KEY and the providers table loaded):
+Usage (run once per directory PDF; needs the configured LLM provider key and providers table loaded):
     python -m ingest.directories data/raw/example_plan_directory_2026.pdf --plan-id medi-cal-la-example --date 2026-10-01
 """
 import argparse
@@ -157,12 +157,8 @@ def preflight(jobs, plans_csv):
 
 
 def _client():
-    try:
-        from app.llm import get_client        # present if you've done the Nebius migration
-        return get_client()
-    except ImportError:
-        import anthropic
-        return anthropic.Anthropic()
+    from app.llm import get_client
+    return get_client()
 
 
 if __name__ == "__main__":

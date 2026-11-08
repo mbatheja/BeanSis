@@ -198,7 +198,7 @@ Postgres via `DATABASE_URL`.
 |---|---|
 | Language | Python |
 | API | FastAPI, Uvicorn, Pydantic |
-| LLMs | Main model for answers, fast model for safety checks, summaries, and extraction (`MODEL_MAIN`, `MODEL_FAST`). Provider is switchable: Anthropic (Claude Sonnet 5.5 / Haiku 5.5 by default) or Nebius Token Factory (OpenAI-compatible, via the `openai` SDK) |
+| LLMs | Main model for answers, fast model for safety checks, summaries, and extraction (`MODEL_MAIN`, `MODEL_FAST`). Nebius Token Factory is the default (OpenAI-compatible, via the `openai` SDK); Anthropic is opt-in via `LLM_PROVIDER=anthropic` |
 | Reference data | DuckDB (read-only, BM25 search) |
 | App state | SQLite locally, Postgres in deployment (SQLAlchemy, psycopg) |
 | Ingestion | pandas, pyarrow, pdfplumber |
@@ -220,7 +220,7 @@ kidney_app/
 │   ├── refdb.py              # DuckDB reference data access and BM25 search
 │   ├── cache.py              # persistent HTTP response cache
 │   ├── retention.py          # data expiry (also runnable from cron)
-│   ├── llm.py                # get_client(): Anthropic SDK, or an adapter that talks to Nebius Token Factory
+│   ├── llm.py                # get_client(): Nebius by default; Anthropic only when explicitly selected
 │   ├── security.py           # shared-secret check + per-user rate limiting
 │   ├── config.py             # all settings, overridable by environment variable
 │   ├── tools/                # agent tools: local, external (PubMed/openFDA/RxNav/...), reviews, signals, transport
@@ -231,11 +231,13 @@ kidney_app/
 │   ├── run.py  components.py  judge.py  metrics.py  scorecard.py  calibrate.py  config.yaml
 │   └── datasets/             # golden, red-team, safety, retrieval, scenarios, personas, labels
 ├── tests/                    # one test_*.py per area, incl. test_llm_adapter and test_security
+├── src/  index.html  package.json  vite.config.js   # React (Vite) frontend; see FRONTEND.md
 ├── base44/                   # Base44 frontend: proxy + reminder-relay functions, FRONTEND_SPEC.md
 ├── deploy/                   # Caddyfile, VM setup, data upload, backups
 ├── data/raw/                 # templates + curated lists (resources, literature, Medi-Cal plans); DBs land in data/
 ├── .claude/commands/         # load-directories.md: Claude Code command that sets up and loads directory PDFs
 ├── Dockerfile  .dockerignore  docker-compose.yml
+├── run_local.ps1  LOCAL_RUN.md   # run API + screens on this computer (no VM, no Base44); see LOCAL_RUN.md
 ├── DEPLOY.md                 # step-by-step deployment guide
 ├── requirements.txt
 └── .env.example
@@ -243,7 +245,7 @@ kidney_app/
 
 ## Setup
 
-Requires Python 3.10+ and an API key for your LLM provider (Anthropic, or Nebius with `LLM_PROVIDER=nebius`).
+Requires Python 3.10+ and a Nebius Token Factory API key. Anthropic can be selected explicitly with `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`.
 
 ```bash
 python -m venv .venv
@@ -251,7 +253,7 @@ source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.
 pip install -r requirements.txt
 
 cp .env.example .env               # Windows PowerShell: Copy-Item .env.example .env
-# edit .env: set ANTHROPIC_API_KEY (or LLM_PROVIDER=nebius + NEBIUS_API_KEY), then export the variables
+# edit .env: set NEBIUS_API_KEY (Nebius is the default provider); export the variables
 
 pytest tests/                      # offline tests, no keys needed
 ```
@@ -262,12 +264,12 @@ All settings live in [app/config.py](app/config.py); any can be overridden by an
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `LLM_PROVIDER` | `anthropic` or `nebius` | `anthropic` |
-| `ANTHROPIC_API_KEY` | **Required** when `LLM_PROVIDER=anthropic` | none |
-| `NEBIUS_API_KEY` | **Required** when `LLM_PROVIDER=nebius` | none |
+| `LLM_PROVIDER` | `nebius` or `anthropic` | `nebius` |
+| `NEBIUS_API_KEY` | **Required** for the default provider | none |
+| `ANTHROPIC_API_KEY` | Required only when `LLM_PROVIDER=anthropic` is explicitly set | none |
 | `NEBIUS_BASE_URL` | Token Factory endpoint | `https://api.tokenfactory.eu-north1.nebius.com/v1/` |
 | `DATABASE_URL` | App state database | SQLite in `data/` |
-| `MODEL_MAIN` / `MODEL_FAST` | Answer model / fast model. On Nebius use exact Token Factory IDs, e.g. `Qwen/Qwen3-30B-A3B-Instruct-2507` | `claude-sonnet-5-5` / `claude-haiku-5-5` |
+| `MODEL_MAIN` / `MODEL_FAST` | Answer model / fast model. Use exact Token Factory IDs with the default provider | `moonshotai/Kimi-K3.1-Pro` / `Qwen/Qwen3-30B-A3B-Instruct-2507` |
 | `JUDGE_PROVIDER`, `JUDGE_MODEL` | Eval judge, so a model doesn't grade itself | app provider / `MODEL_MAIN` |
 | `SAFETY_LLM_CHECK` | `1` enables the model-based safety check (rules always run) | `1` |
 | `NCBI_API_KEY`, `OPENFDA_API_KEY` | Higher rate limits | none |
@@ -299,7 +301,7 @@ MODEL_FAST=Qwen/Qwen3-30B-A3B-Instruct-2507
 List models that support tools: `curl "https://api.tokenfactory.nebius.com/v1/models?verbose=true" -H "Authorization: Bearer $NEBIUS_API_KEY"`.
 Anthropic prompt caching does not apply on Nebius, so cache-read tokens will read 0 in the scorecard.
 
-Before switching, compare providers with the eval and keep the judge on a different model than the one under test:
+To compare providers, select Anthropic explicitly for that run and keep the judge on a different model than the one under test:
 
 ```bash
 LLM_PROVIDER=anthropic python -m eval.run --tag claude --judge
@@ -426,6 +428,26 @@ python -m eval.calibrate score eval/results/<run>/calibration_a.csv eval/results
 Datasets live in `eval/datasets/` (YAML/CSV). Fill model prices in `eval/config.yaml` to get cost per answer.
 `handle_chat(..., debug=True)` keeps raw tool outputs so the judge grades citations against what the agent
 actually saw.
+
+## Trials from a ClinicalTrials.gov website export
+`data/raw/ctg-studies.json`: 50 recruiting / not-yet-recruiting kidney disease trials with California sites
+(search term "Pregnancy", female participants). Load without the API:
+`python -m ingest.clinicaltrials --from-json data/raw/ctg-studies.json`
+The pregnancy flag is three-valued: excludes / includes / not stated. On this export: 26 exclude pregnancy
+(including "not pregnant" or required contraception in the inclusion criteria), 24 don't mention it, none
+recruit pregnant participants. `eval/datasets/pregnancy_flag_labels.csv` is pre-filled with these 50 for
+human labeling (blank labels are skipped).
+
+## Guidelines and full texts (`data/raw/guidelines_manifest.csv`)
+KDIGO 2024 CKD guideline and ACOG Practice Bulletin 222 (full text), USPSTF aspirin and blood-pressure
+screening recommendations, CDC HEAR HER, the National Maternal Mental Health Hotline, and the AAFP pregnancy
+hub. Put the PDFs in `data/raw/pdfs/` as `KDIGO-2024-CKD-Guideline.pdf` and `acog_pb_222.pdf` (rename the ACOG
+file: its original name contains a comma). Load everything together:
+`python -m ingest.documents data/raw/manifest.csv data/raw/resources_manifest.csv data/raw/guidelines_manifest.csv --literature data/raw/literature.csv`
+
+## Provider test set (from your own NPPES load, verified against the official NPI Registry)
+`python -m eval.sample_providers sample` (50 LA nephrologists + 50 CA OB/GYNs), then
+`python -m eval.sample_providers verify`, then `python -m eval.components providers`.
 
 ## Before real users
 

@@ -5,6 +5,7 @@ One chat turn, for any tab:
   -> citation grounding check -> persist messages + every source found -> maybe summarize old turns
 """
 import json
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -12,6 +13,7 @@ from . import agents, config, grounding, presentation, safety, tools
 
 _pool = ThreadPoolExecutor(max_workers=8)
 TOOL_RESULT_CHARS = 8000   # cap per tool result to bound context size
+log = logging.getLogger(__name__)
 
 
 def _history(store, thread):
@@ -43,9 +45,18 @@ def run_agent(llm, tab, messages, system, ctx, max_rounds=None):
     for round_no in range(max_rounds + 1):
         last_round = round_no == max_rounds
         kwargs = dict(model=config.MODEL_MAIN, max_tokens=config.MAX_TOKENS, system=system,
-                      tools=tool_schemas, messages=messages)
+                      messages=messages)
         if last_round:
-            kwargs["tool_choice"] = {"type": "none"}   # out of tool budget: must answer now
+            # Some OpenAI-compatible models ignore tool_choice='none'. Removing tools guarantees that
+            # the final round writes an answer from evidence already gathered instead of spending the
+            # last round on another tool call and returning an empty response.
+            instruction = {"type": "text", "text": "The tool-call limit has been reached. Answer now using only the tool results already in the conversation; do not call tools."}
+            if isinstance(system, list):
+                kwargs["system"] = [*system, instruction]
+            else:
+                kwargs["system"] = f"{system or ''}\n\n{instruction['text']}"
+        else:
+            kwargs["tools"] = tool_schemas
         resp = llm.messages.create(**kwargs)
         for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
             usage[k] = usage.get(k, 0) + (getattr(getattr(resp, "usage", None), k, 0) or 0)
@@ -53,6 +64,9 @@ def run_agent(llm, tab, messages, system, ctx, max_rounds=None):
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
         if resp.stop_reason != "tool_use" or not tool_uses:
             text = "".join(b.text for b in resp.content if b.type == "text")
+            if not text.strip():
+                log.warning("Model returned no answer text for tab=%s (stop_reason=%s)", tab, resp.stop_reason)
+                text = "I couldn't generate an answer this time. Please try again."
             return text, list(sources.values()), calls, messages
 
         # Independent tool calls in the same round run in parallel.
@@ -70,7 +84,8 @@ def run_agent(llm, tab, messages, system, ctx, max_rounds=None):
                             "content": json.dumps(out.get("results"), default=str)[:TOOL_RESULT_CHARS]})
         messages = messages + [{"role": "assistant", "content": resp.content},
                                {"role": "user", "content": results}]
-    return "", list(sources.values()), calls, messages  # unreachable in practice
+    log.warning("Tool loop ended without an answer for tab=%s after %s rounds", tab, max_rounds)
+    return "I couldn't generate an answer this time. Please try again.", list(sources.values()), calls, messages
 
 
 def revision_feedback(tab, report):

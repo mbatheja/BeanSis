@@ -96,7 +96,7 @@ def main():
                          f"{fmt(b.get('expected_tool_hit'))} | {fmt(b.get('citation_precision'))} | "
                          f"{fmt(b.get('key_point_recall'))} |")
 
-    comps = latest_components()
+    comps = {k: v for k, v in latest_components().items() if not v.get("skipped")}
     if comps:
         lines += ["", "## Components (latest)", ""]
         for name, r in comps.items():

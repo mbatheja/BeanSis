@@ -1,4 +1,4 @@
-"""Tool registry: name -> (Claude tool schema, implementation(args, ctx))."""
+"""Tool registry: name -> (LLM tool schema, implementation(args, ctx))."""
 from . import external, local, reviews, signals, transport
 
 

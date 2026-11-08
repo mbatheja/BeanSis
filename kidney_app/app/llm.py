@@ -2,9 +2,9 @@
 LLM client factory.
 
 get_client() returns something with `.messages.create(**kwargs)` that takes Anthropic-shaped arguments and
-returns Anthropic-shaped responses. With LLM_PROVIDER=anthropic that is the Anthropic SDK itself; with
-LLM_PROVIDER=nebius it is NebiusClient, which translates to Nebius Token Factory's OpenAI-compatible
-Chat Completions API. Call sites never see the difference. Nothing else should construct a client.
+returns Anthropic-shaped responses. Nebius Token Factory is the default provider; it translates to Nebius's
+OpenAI-compatible Chat Completions API. Anthropic is available only when explicitly selected with
+LLM_PROVIDER=anthropic. Call sites never see the difference. Nothing else should construct a client.
 """
 import json
 import logging

@@ -10,13 +10,39 @@ pmid,31485207,Non-obstetric complications in preeclampsia,pregnancy
 pmid,42665802,Gender disparity in access to care across the continuum of chronic kidney disease: a systematic review,disparities
 pmid,35257055,Nephrologists' Perspectives on Gender Disparities in CKD and Dialysis,disparities
 pmid,28532558,Chronic Kidney Disease Gender and Access to Care: A Global Perspective,disparities
-pmid,29544451,What we do and do not know about women and kidney diseases,disparities
+pmid,29544451,What we do and do not know about women and kidney diseases; questions unanswered and answers unquestioned: reflection on World Kidney Day and International Woman's Day,disparities
 pmid,23522719,Chronic kidney disease and dialysis access in women,disparities
-pmid,31329936,Socioeconomic disadvantage and the risk of advanced chronic kidney disease,disparities
-pmid,42536413,Sex and Cardiovascular Outcomes with Chronic Kidney Disease,cardiometabolic
+pmid,31329936,Socioeconomic disadvantage and the risk of advanced chronic kidney disease: results from a cohort study with 1.4 million participants,disparities
+pmid,42536413,Sex and Cardiovascular Outcomes with CKD,cardiometabolic
 pmid,37619674,Estrogen-induced signalling and the renal contribution to salt and water homeostasis,cardiometabolic
 pmid,42909960,Chronic Kidney Disease Burden Attributable to Metabolic Risks Among Women Aged 55 Years Worldwide,cardiometabolic
 pmid,21940842,Pregnancy Outcomes in Women with Chronic Kidney Disease: A Systematic Review,pregnancy
 pmid,26487769,A Systematic Review and Meta-Analysis of Outcomes of Pregnancy in CKD and CKD Outcomes in Pregnancy,pregnancy
 pmid,29355168,Reproductive Health and Pregnancy in Women with Chronic Kidney Disease,pregnancy
 pmid,38832502,Medication burden in patients with dialysis-dependent CKD: a systematic review,medications
+pmid,38569186,ACOG Clinical Practice Update: Biomarker Prediction of Preeclampsia With Severe Features,pregnancy
+pmid,37258009,"Pregnancy in Chronic Kidney Disease: Acute Kidney Injury in Pregnant Women and Management of Chronic Kidney Disease in the Pregnant Patient",pregnancy
+pmid,21900940,Chronic kidney disease in postmenopausal women,reproductive
+pmid,24002558,"Kidney disease in pregnancy: (Women's Health Series)",pregnancy
+pmid,27190328,Sex hormones in women with kidney disease,reproductive
+pmid,23978545,"Women, kidney disease, and pregnancy",pregnancy
+pmid,40818891,Global Inequities in Pregnancy in Women With Kidney Disease,pregnancy
+pmid,36418039,Reproductive Health in Women with Kidney Disease,reproductive
+pmid,33328059,Women's Health and Kidney Disease,reproductive
+pmid,39671256,"Unraveling Sex Differences in Kidney Health and CKD: A Review of the Effect of Sex Hormones",cardiometabolic
+doi,10.1097/MNH.0000000000000463,Sex hormones and their influence on chronic kidney disease,cardiometabolic
+doi,10.3390/ijms24098244,Role of Sex Hormones in Prevalent Kidney Diseases,cardiometabolic
+doi,10.1210/clinem/dgae374,"Female Reproductive Factors, Exogenous Hormone Use, and Incident Chronic Kidney Disease and End-Stage Renal Disease",reproductive
+doi,10.1093/joneph/aajaf022,Sex hormones and sexual health in chronic kidney disease before and after kidney transplantation,reproductive
+doi,10.1097/GME.0000000000000657,"Hormone therapy and clinical and surrogate cardiovascular endpoints in women with chronic kidney disease: a systematic review and meta-analysis",cardiometabolic
+doi,10.1007/s11914-018-0483-3,"Gonadal Hormones in the Pathogenesis and Treatment of Bone Health in Patients with Chronic Kidney Disease: A Systematic Review and Meta-Analysis",cardiometabolic
+doi,10.1038/s41581-023-00717-w,Menopause and chronic kidney disease,reproductive
+doi,10.3389/fmed.2022.823835,"Early Menopause May Associate With a Higher Risk of CKD and All-Cause Mortality in Postmenopausal Women: An Analysis of NHANES, 1999-2014",cardiometabolic
+doi,10.1093/ndt/gfag110,"Sex, menopause, and chronic kidney disease in primary care",reproductive
+pmid,25628057,Menopausal Symptoms in Women with Chronic Kidney Disease,reproductive
+doi,10.1093/ndt/gfp483,"Clinical implication of metabolic syndrome on chronic kidney disease depends on gender and menopausal status: results from the Korean National Health and Nutrition Examination Survey",cardiometabolic
+doi,10.1097/GME.0000000000001579,"Changes in kidney function during the menopausal transition: the Study of Women's Health Across the Nation (SWAN) - Michigan site",reproductive
+doi,10.1007/s00198-017-4221-y,"Reduced kidney function is associated with BMD, bone loss and markers of mineral homeostasis in older women: a 10-year longitudinal study",cardiometabolic
+doi,10.1093/ckj/sfae248,Kidney function and bone mineral density in chronic kidney disease patients,cardiometabolic
+doi,10.1007/s00223-020-00777-1,"Chronic Kidney Disease-Mineral and Bone Disorders: Pathogenesis and Management",cardiometabolic
+doi,10.1093/ckj/sfae093,"Ten tips on how to assess bone health in patients with chronic kidney disease",cardiometabolic

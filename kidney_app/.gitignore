@@ -18,6 +18,10 @@ data/raw/*
 !data/raw/*_template.csv
 !data/raw/resources_manifest.csv
 !data/raw/literature.csv
+!data/raw/directories.csv
+!data/raw/plans.csv
+!data/raw/guidelines_manifest.csv
+!data/raw/ctg-studies.json
 !data/raw/ca_medi_cal_plans.csv
 !data/raw/ca_medi_cal_plans_README.md
 
@@ -29,3 +33,8 @@ eval/results/
 .idea/
 .DS_Store
 Thumbs.db
+node_modules/
+dist/
+base44/.app.jsonc
+api-local.log*
+web-local.log*

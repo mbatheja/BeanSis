@@ -156,7 +156,10 @@ def build_profile(ingredient, review_rows, condition=None, research=True):
 def drug_signal_profile(args, ctx):
     names, ingredient = reviews.drug_names(args["drug"])
     ingredient = ingredient or args["drug"].lower()
-    rows = reviews.reviews_for(names)
+    try:
+        rows = reviews.reviews_for(names)
+    except Exception:
+        rows = []          # reviews table not built yet: compare the FDA label and FAERS only
     profile, sources = build_profile(ingredient, rows, args.get("condition"), args.get("research", True))
     if rows:
         sources.append({"source_id": f"REVIEWS:{ingredient.replace(' ', '-')}",
