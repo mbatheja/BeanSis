@@ -183,6 +183,22 @@ def handle_chat(store, llm, user_id, tab, message, thread_id=None, debug=False):
     ctx = {"user_id": user_id, "profile": profile, "store": store, "llm": llm, "tab": tab, "debug": debug}
     answer, report, sources, calls, revision = generate_with_revision(
         llm, tab, messages, _system_blocks(tab, profile, thread.get("summary")), ctx)
+    provider_search = ctx.get("provider_search")
+    if tab == "doctors" and provider_search and not provider_search.get("provider_count"):
+        plan = provider_search.get("plan") or {}
+        verify_url = provider_search.get("verify_url")
+        if verify_url:
+            specialty = provider_search.get("specialty", "provider").replace("_", " ")
+            plan_name = plan.get("plan_name") or plan.get("insurer") or "your insurance plan"
+            if provider_search.get("directory_loaded") is False:
+                reason = "I couldn't verify local in-network listings because this plan's directory hasn't been loaded into Bean Sis yet."
+            else:
+                reason = f"I couldn't find a matching {specialty} in the local directory near ZIP code {provider_search.get('zip')}."
+            answer = (f"{reason} Search {plan_name}'s current provider directory here: "
+                      f"[PLAN:{plan.get('plan_id', '')}]. Please confirm the provider is in network and accepting "
+                      "patients before booking.")
+            report = grounding.check(answer, sources, tab)[1]
+            revision = {"attempted": False, "accepted": False, "reason": None}
     shown = presentation.build(tab, answer, report, sources, calls, grounding.CLINICAL_TABS)
     shown["guardrails"].append(presentation.revision_guardrail(revision))
 

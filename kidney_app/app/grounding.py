@@ -8,7 +8,7 @@ A stronger next step: an entailment check that each sentence is supported by its
 """
 import re
 
-ID_TOKEN = re.compile(r"^(PMID:\d+|DOC:[\w.\-:/]+|NCT\d{8}|LABEL:[\w\-]+|FAERS:[\w\-:. ]+|NPI:\d{10}|RXCUI:\d+|FDC:\d+|REVIEWS:[\w\-]+)$")
+ID_TOKEN = re.compile(r"^(PMID:\d+|DOC:[\w.\-:/]+|NCT\d{8}|LABEL:[\w\-]+|FAERS:[\w\-:. ]+|NPI:\d{10}|PLAN:[\w.\-:/]+|RXCUI:\d+|FDC:\d+|REVIEWS:[\w\-]+)$")
 BRACKET = re.compile(r"\[([^\[\]]{3,200})\]")
 
 CLINICAL_TABS = {"symptoms", "medications"}

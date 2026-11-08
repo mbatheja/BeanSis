@@ -1,18 +1,18 @@
 /* Tokens ------------------------------------------------------------------ */
 :root {
-  --ink: #E7ECE8;
-  --ink-2: #A5B0A8;
-  --paper: #101311;
-  --surface: #191E1A;
-  --rule: #343D36;
-  --maroon: #A3B99F;
-  --maroon-tint: #263229;
-  --sage: #A3B99F;
-  --sage-tint: #263229;
-  --amber: #E3BE78;
-  --amber-tint: #352D1F;
-  --urgent: #FF8B80;
-  --urgent-tint: #3A2422;
+  --ink: #28432E;
+  --ink-2: #49634D;
+  --paper: #FFFFFF;
+  --surface: #FFFFFF;
+  --rule: #CFDCCF;
+  --maroon: #4D7053;
+  --maroon-tint: #E8F0E9;
+  --sage: #4D7053;
+  --sage-tint: #E8F0E9;
+  --amber: #74531A;
+  --amber-tint: #FFF4D6;
+  --urgent: #B42318;
+  --urgent-tint: #FEE4E2;
   --font: "Atkinson Hyperlegible", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --step--1: 0.875rem;
   --step-0: 1.0625rem;     /* 17px body: comfortable for tired eyes */
@@ -58,7 +58,7 @@ a:hover { text-decoration-thickness: 2px; }
 }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn.primary { background: var(--maroon); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: #5F222D; }
+.btn.primary:hover:not(:disabled) { background: #3B5C41; }
 .btn.quiet { background: var(--surface); color: var(--maroon); border-color: var(--rule); }
 .btn.quiet:hover:not(:disabled) { border-color: var(--maroon); }
 .btn.link { background: none; color: var(--maroon); padding: 0.25rem 0; min-height: 0; text-decoration: underline; font-weight: 400; }
@@ -95,25 +95,29 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; padding-bottom: 4.25rem; }
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0.75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--rule);
+  padding: 0.6rem 1rem; background: var(--sage); border-bottom: 1px solid var(--sage);
   position: sticky; top: 0; z-index: 5;
 }
-.brand { font-weight: 700; color: var(--maroon); }
+.brand { display: inline-flex; align-items: center; padding: 0.35rem 0.75rem; border-radius: var(--radius-s); background: transparent; color: #fff; font-weight: 700; text-decoration: none; }
 .top-links { display: flex; gap: 1rem; }
-.top-links a { text-decoration: none; color: var(--ink-2); }
-.top-links a[aria-current="page"] { color: var(--maroon); font-weight: 700; }
+.top-links a { text-decoration: none; color: #fff; }
+.top-links a[aria-current="page"] { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 0.25rem; }
+.topbar a:focus-visible { outline-color: #fff; }
 .tabs {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
   display: flex; align-items: stretch; gap: 0.25rem; overflow-x: auto;
-  background: var(--surface); border-top: 1px solid var(--rule);
-  padding: 0 1rem env(safe-area-inset-bottom); scrollbar-width: thin;
+  background: var(--sage); border-top: 1px solid var(--sage);
+  padding: 0.25rem 1rem env(safe-area-inset-bottom); scrollbar-width: thin;
 }
 .tabs a {
-  flex: 0 0 auto; text-align: center; text-decoration: none; color: var(--ink-2);
-  font-size: var(--step--1); padding: 0.75rem 0.9rem; line-height: 1.2;
-  border-bottom: 3px solid transparent; white-space: nowrap;
+  flex: 0 0 auto; text-align: center; text-decoration: none; color: #fff;
+  font-size: var(--step--1); padding: 0.65rem 0.9rem; line-height: 1.2;
+  border-radius: var(--radius-s); border-bottom: 3px solid transparent; white-space: nowrap;
 }
-.tabs a.active { color: var(--maroon); font-weight: 700; border-bottom-color: var(--maroon); }
+.tabs a:hover { background: rgb(255 255 255 / 14%); }
+.tabs a.active { color: var(--sage); background: #fff; font-weight: 700; border-bottom-color: #fff; }
+.tab-content { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; }
+.tab-icon { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
 .main { padding: 1rem; max-width: 72rem; margin: 0 auto; }
 .banner { font-size: var(--step--1); color: var(--ink-2); margin-bottom: 1rem; }
 .banner.local { color: var(--amber); font-weight: 700; }
@@ -141,7 +145,7 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .starters { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
 .starter {
   font: inherit; text-align: left; cursor: pointer; color: var(--ink);
-  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 0.75rem 1rem;
+  background: #F5F8F5; border: 1px solid #DCE7DD; border-radius: var(--radius-m); padding: 0.75rem 1rem;
 }
 .starter:hover { border-color: var(--maroon); }
 .question {
@@ -150,20 +154,22 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .thinking { color: var(--ink-2); font-style: italic; }
 .composer {
   display: flex; gap: 0.5rem; align-items: flex-end; margin-top: 1rem;
-  position: sticky; bottom: 4.25rem; background: var(--paper); padding: 0.5rem 0;
+  position: sticky; bottom: 4.25rem; background: var(--sage-tint); border: 1.5px solid var(--sage);
+  border-radius: var(--radius-m); padding: 0.55rem;
 }
 @media (max-width: 700px) {
   .chat.history-open { grid-template-columns: minmax(0, 1fr); }
   .chat.history-open .threads { position: static; max-height: 16rem; }
   .shell { padding-bottom: 4.25rem; }
-  .tabs a { padding-inline: 0.65rem; }
+  .tabs { padding-inline: 0.5rem; }
+  .tabs a { padding-inline: 0.6rem; }
 }
 .composer textarea, input, select, textarea {
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1.5px solid var(--rule); border-radius: var(--radius-s); padding: 0.6rem 0.7rem; width: 100%;
   font-weight: 400;
 }
-.composer textarea { resize: vertical; min-height: 3rem; }
+.composer textarea { resize: vertical; min-height: 3rem; background: #fff; border-color: #B9CDBB; }
 input:focus, select:focus, textarea:focus { border-color: var(--maroon); outline: none; box-shadow: 0 0 0 3px var(--maroon-tint); }
 
 /* Answers: the citation tabs are the one bold element ----------------------- */
@@ -179,7 +185,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--maroon); outline
   font-size: 0.72em; font-weight: 700; line-height: 1.5; text-align: center; vertical-align: 0.35em;
   color: #fff; background: var(--maroon); border-radius: 3px 3px 3px 0; text-decoration: none;
 }
-a.cite:hover { background: #5F222D; }
+a.cite:hover { background: #3B5C41; }
 .sources {
   list-style: none; margin: 1rem 0; padding: 0.75rem 0 0; border-top: 1px solid var(--rule);
   font-size: var(--step--1);
@@ -234,7 +240,7 @@ a.cite:hover { background: #5F222D; }
 .number { font-size: var(--step-1); font-weight: 700; margin: 0.6rem 0 0.2rem; }
 .contact-label { font-weight: 700; }
 .other-lines { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
-.alternate { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(122, 46, 59, 0.25); }
+.alternate { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(77, 112, 83, 0.28); }
 .script { margin: 0.5rem 0 0.75rem; padding: 0.75rem 1rem; background: var(--paper); border-left: 3px solid var(--sage); font-size: var(--step-0); }
 .checklist, .fallbacks { padding-left: 1.2rem; }
 .checklist li, .fallbacks li { margin-bottom: 0.4rem; }

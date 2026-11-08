@@ -117,6 +117,12 @@ CREATE TABLE IF NOT EXISTS meals (
     created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_meals_user_day ON meals (user_id, day);
+CREATE TABLE IF NOT EXISTS visit_prep_cache (
+    user_id     TEXT PRIMARY KEY,
+    cache_key   TEXT NOT NULL,
+    sheet       TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
 """
 
 PROFILE_FIELDS = ("name", "birth_date", "plan_id", "insurance_other", "zip", "kidney_disease_type",
@@ -313,6 +319,18 @@ class Store:
             p["snapshot"] = json.loads(p["snapshot"])
         return {"pinned_answers": pins, "saved_resources": self.list_saved(user_id)}
 
+    def get_visit_prep_cache(self, user_id, cache_key, max_age_hours=24):
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat()
+        rows = self._exec("SELECT sheet FROM visit_prep_cache WHERE user_id = :u AND cache_key = :k "
+                          "AND updated_at >= :cutoff", {"u": user_id, "k": cache_key, "cutoff": cutoff})
+        return json.loads(rows[0]["sheet"]) if rows else None
+
+    def set_visit_prep_cache(self, user_id, cache_key, sheet):
+        self._exec("DELETE FROM visit_prep_cache WHERE user_id = :u", {"u": user_id})
+        self._exec("INSERT INTO visit_prep_cache (user_id, cache_key, sheet, updated_at) "
+                   "VALUES (:u, :k, :sheet, :now)",
+                   {"u": user_id, "k": cache_key, "sheet": json.dumps(sheet), "now": _now()})
+
     # ------------------------------------------------------------ "you asked this before"
     @staticmethod
     def _keywords(text):
@@ -458,5 +476,6 @@ class Store:
         for tid in [r["thread_id"] for r in self._exec("SELECT thread_id FROM threads WHERE user_id = :u",
                                                          {"u": user_id})]:
             self._delete_thread(tid)
-        for table in ("pins", "saved_resources", "sources", "medications", "dose_log", "meals", "profiles"):
+        for table in ("pins", "saved_resources", "sources", "medications", "dose_log", "meals", "profiles",
+                      "visit_prep_cache"):
             self._exec(f"DELETE FROM {table} WHERE user_id = :u", {"u": user_id})

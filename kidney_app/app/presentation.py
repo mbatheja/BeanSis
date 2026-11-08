@@ -13,6 +13,7 @@ SOURCE_KINDS = {  # ID prefix -> label shown to users
     "LABEL": "FDA drug label",
     "FAERS": "FDA adverse event reports",
     "NPI": "National provider registry",
+    "PLAN": "Insurer provider search",
     "RXCUI": "Drug name lookup (RxNorm)",
     "FDC": "USDA FoodData Central",
     "REVIEWS": "Patient reviews (Drugs.com via DrugRev dataset, CC BY 4.0)",

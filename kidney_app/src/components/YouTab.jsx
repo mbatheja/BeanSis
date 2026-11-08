@@ -30,7 +30,7 @@ export default function YouTab() {
       {data && section === "board" && <Board board={data.board} retention={data.retention} onChange={reload} />}
       {data && section === "meds" && <Meds data={data} onChange={reload} />}
       {data && section === "food" && <Nutrition onChange={reload} />}
-      {data && section === "visit" && <VisitPrep />}
+      {data && section === "visit" && <VisitPrepBoundary><VisitPrep /></VisitPrepBoundary>}
     </div>
   );
 }
@@ -286,14 +286,41 @@ function Totals({ totals }) {
   );
 }
 
+class VisitPrepBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error) { console.error("Visit Prep UI failed", error); }
+  render() {
+    if (this.state.failed) return (
+      <section className="panel" role="alert">
+        <h2>Visit Prep ran into a problem</h2>
+        <p className="muted">Your other sections are still available. Try opening Visit Prep again.</p>
+        <button className="btn quiet" onClick={() => this.setState({ failed: false })}>Retry Visit Prep</button>
+      </section>
+    );
+    return this.props.children;
+  }
+}
+
 function VisitPrep() {
-  const [types, setTypes] = useState({});
-  const [form, setForm] = useState({ visit_type: "nephrology", concerns: "", save: true });
+  const [types, setTypes] = useState(null);
+  const [form, setForm] = useState({ visit_type: "", visit_type_other: "", concerns: "", save: true });
   const [sheet, setSheet] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => { api("GET", "/you/visit-types").then(setTypes).catch(() => {}); }, []);
+  useEffect(() => {
+    let active = true;
+    api("GET", "/you/visit-types").then((result) => {
+      const validTypes = result && typeof result === "object" && !Array.isArray(result) &&
+        Object.keys(result).length > 0 && Object.values(result).every((label) => typeof label === "string");
+      if (!validTypes) throw new Error("Visit options returned an unexpected response. Please refresh and try again.");
+      if (active) setTypes(result);
+    }).catch((err) => {
+      if (active) setError(err.message || "Doctor visit options could not load. Please retry.");
+    });
+    return () => { active = false; };
+  }, []);
 
   const make = async (e) => {
     e.preventDefault();
@@ -308,15 +335,20 @@ function VisitPrep() {
       <h2>Prepare for a visit</h2>
       {!sheet && (
         <form className="stack" onSubmit={make}>
-          <label>Who are you seeing?
-            <select value={form.visit_type} onChange={(e) => setForm({ ...form, visit_type: e.target.value })}>
-              {Object.entries(types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <label>What kind of doctor or clinician are you visiting?
+            <select required value={form.visit_type} onChange={(e) => setForm({ ...form, visit_type: e.target.value })} disabled={!types}>
+              <option value="">Choose a clinician</option>
+              {Object.entries(types || {}).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select></label>
+          {form.visit_type === "other" && <label>What kind of doctor or clinician?
+            <input required value={form.visit_type_other} onChange={(e) => setForm({ ...form, visit_type_other: e.target.value })}
+                   placeholder="For example, cardiologist or dermatologist" />
+          </label>}
           <label>Anything you want to bring up? (optional)
             <textarea rows={3} value={form.concerns} onChange={(e) => setForm({ ...form, concerns: e.target.value })}
                       placeholder="For example, my ankles have been swelling at night" /></label>
           <label className="row"><input type="checkbox" checked={form.save} onChange={(e) => setForm({ ...form, save: e.target.checked })} /> Save the sheet to my board</label>
-          <button className="btn primary" disabled={busy}>{busy ? "Making your sheet…" : "Make my visit sheet"}</button>
+          <button className="btn primary" disabled={busy || !types || !form.visit_type || (form.visit_type === "other" && !form.visit_type_other.trim())}>{busy ? "Making your sheet…" : "Make my visit sheet"}</button>
           {error && <p className="error">{error}</p>}
         </form>
       )}

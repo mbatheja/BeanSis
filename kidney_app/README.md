@@ -178,7 +178,7 @@ show in the UI. `DELETE /threads/{id}?user_id=` deletes one chat; `DELETE /users
 | Source | Loaded by | Contents |
 |---|---|---|
 | Curated documents (`manifest.csv`, see `manifest_template.csv`) | `ingest.documents` | Research, coverage, and resource articles searched by `search_documents` |
-| `data/raw/resources_manifest.csv` | `ingest.documents` | 35 California and federal coverage pages (Medi-Cal, Medi-Cal Health Care Options, Medicare, maternity, reproductive health, fertility) and support resources (helplines, peer support, support groups, pregnancy counseling) |
+| `data/raw/resources_manifest.csv` | `ingest.documents` | California and federal coverage pages and support resources, plus patient education on CKD, AKI, kidney infections, glomerular disease, women's kidney health, menopause, pregnancy, and medicines |
 | `data/raw/literature.csv`: the team's core papers (KDIGO 2025 consensus, AHA 2026 statement, pregnancy-outcome reviews, disparities and cardiometabolic papers) | `ingest.documents --literature` (`ingest/literature.py`) | PubMed abstracts only. Each entry's real PubMed title must match its expected title, so a typo'd PMID can't load the wrong paper; skipped entries are listed in `data/literature_report.csv` |
 | [Census ZCTA-to-county relationship file](https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html) | `ingest.ca_transport` | California ZIP -> county for the ride finder |
 | `data/raw/ca_medi_cal_plans.csv` from the [DHCS plan directory](https://www.dhcs.ca.gov/individuals/medi-cal-managed-care-health-plan-directory/) | read directly by `app/tools/transport.py` | Medi-Cal plans per county with verified phone numbers (see `ca_medi_cal_plans_README.md`) |
@@ -186,7 +186,7 @@ show in the UI. `DELETE /threads/{id}?user_id=` deletes one chat; `DELETE /users
 | [CMS NPPES NPI file](https://download.cms.gov/nppes/NPI_Files.html) | `ingest.providers` | National provider registry, monthly V.2 file (`npidata_pfile_*.csv`, ~10 GB; V.1 headers also work) |
 | [Census Gazetteer ZCTA file](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html) (e.g. `2026_Gaz_zcta_national.txt`) | `ingest.providers` | ZIP code coordinates for distance search |
 | Insurance plans CSV (see `data/raw/plans_template.csv`) | `ingest.providers` | Plans the user can select |
-| Insurer provider-directory PDFs (`data/raw/Provider_Directory/`, listed in `directories.csv`) | `ingest.directories --batch` | In-network status, matched to NPPES providers |
+| Insurer provider-directory PDFs (`data/raw/Provider_Directory/`, listed in `directories.csv`) | `ingest.directories --batch` | In-network status, matched to NPPES providers; until loaded, the doctor finder returns the plan's official provider-search link from `plans.csv` |
 | [DrugRev](https://doi.org/10.17632/64cc5w5dxy.1) (Ahmed et al., 2023, Mendeley Data, CC BY 4.0) | `ingest.reviews` | Drugs.com patient reviews, 2008-2023 (~170 MB, not bundled) |
 
 User-entered data (profile, medications, meals, dietitian targets) is stored separately as app state: SQLite locally,
