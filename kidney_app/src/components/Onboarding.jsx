@@ -1,17 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { api } from "../api/kidney";
 import ProfileQuestions from "./ProfileQuestions";
+import { CA_INSURANCE_PLANS } from "../data/insurancePlans";
 
 export default function Onboarding({ onComplete }) {
   const [p, setP] = useState({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, state: "CA" });
-  const [plans, setPlans] = useState([]);
   const [status, setStatus] = useState(null);
-
-  useEffect(() => {
-    api("GET", "/plans", { query: { state: "CA" } })
-      .then((data) => setPlans(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
 
   const set = (key, value) => setP((previous) => ({ ...previous, [key]: value }));
   const save = async (e) => {
@@ -34,7 +28,7 @@ export default function Onboarding({ onComplete }) {
         <h1>Tell us a little about you</h1>
         <p className="muted">These answers help personalize kidney health information and local resources. You can update them later in your profile.</p>
         <form className="stack" onSubmit={save}>
-          <ProfileQuestions p={p} set={set} plans={plans} required />
+          <ProfileQuestions p={p} set={set} plans={CA_INSURANCE_PLANS} required />
           <button className="btn primary large">Save and continue</button>
           {status && <p className="error" role="alert">{status}</p>}
         </form>

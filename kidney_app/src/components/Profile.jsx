@@ -2,20 +2,19 @@ import React, { useEffect, useState } from "react";
 import { api } from "../api/kidney";
 import { base44 } from "../api/base44Client";
 import ProfileQuestions from "./ProfileQuestions";
+import { CA_INSURANCE_PLANS } from "../data/insurancePlans";
 
 const TARGETS = [["sodium_mg", "Sodium (mg)"], ["potassium_mg", "Potassium (mg)"], ["phosphorus_mg", "Phosphorus (mg)"],
                  ["protein_g", "Protein (g)"], ["fluids_ml", "Fluids (ml)"]];
 
 export function Profile() {
   const [p, setP] = useState(null);
-  const [plans, setPlans] = useState([]);
   const [status, setStatus] = useState(null);
 
   useEffect(() => {
     api("GET", "/profile/{me}").then((d) => setP({
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, state: "CA", nutrition_targets: {}, ...d,
     })).catch((e) => setStatus(e.message));
-    api("GET", "/plans", { query: { state: "CA" } }).then((d) => setPlans(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   if (!p) return <section className="panel"><p className="muted">{status || "Loading…"}</p></section>;
@@ -47,7 +46,7 @@ export function Profile() {
       <h2>My profile</h2>
       <p className="muted">This helps the app tailor answers and find doctors and rides near you. You can update these details any time.</p>
       <form className="stack" onSubmit={save}>
-        <ProfileQuestions p={p} set={set} plans={plans} />
+        <ProfileQuestions p={p} set={set} plans={CA_INSURANCE_PLANS} />
 
         <fieldset>
           <legend>Daily targets from your dietitian (optional)</legend>
