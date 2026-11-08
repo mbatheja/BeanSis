@@ -62,6 +62,21 @@ def run_agent(llm, tab, messages, system, ctx, max_rounds=None):
             usage[k] = usage.get(k, 0) + (getattr(getattr(resp, "usage", None), k, 0) or 0)
         usage["llm_calls"] = usage.get("llm_calls", 0) + 1
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
+        text = "".join(b.text for b in resp.content if b.type == "text")
+        if not text.strip() and not tool_uses:
+            log.warning("Model returned no answer text for tab=%s (stop_reason=%s); retrying once", tab, resp.stop_reason)
+            retry_instruction = ("The previous output contained no user-facing answer. Reply now in concise plain language "
+                                 "without showing internal reasoning. Use available tools only if needed; if retrieved "
+                                 "evidence is insufficient, say so plainly.")
+            retry_system = ([*kwargs["system"], {"type": "text", "text": retry_instruction}]
+                            if isinstance(kwargs["system"], list)
+                            else f"{kwargs.get('system') or ''}\n\n{retry_instruction}")
+            retry_kwargs = {**kwargs, "system": retry_system, "max_tokens": max(4096, config.MAX_TOKENS * 3)}
+            resp = llm.messages.create(**retry_kwargs)
+            for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+                usage[k] = usage.get(k, 0) + (getattr(getattr(resp, "usage", None), k, 0) or 0)
+            usage["llm_calls"] = usage.get("llm_calls", 0) + 1
+            tool_uses = [b for b in resp.content if b.type == "tool_use"]
         if resp.stop_reason != "tool_use" or not tool_uses:
             text = "".join(b.text for b in resp.content if b.type == "text")
             if not text.strip():
