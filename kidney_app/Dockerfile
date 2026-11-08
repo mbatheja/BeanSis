@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="Bean Sis API" \
+      org.opencontainers.image.description="Health education and kidney-care support API for Bean Sis"
+
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 

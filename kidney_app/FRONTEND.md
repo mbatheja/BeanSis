@@ -1,4 +1,4 @@
-# Frontend: build and deploy with the Base44 CLI
+# Bean Sis frontend: build and deploy with the Base44 CLI
 
 The frontend is a React (Vite) app in `src/`, deployed to Base44 hosting together with the two backend functions
 in `base44/functions/` (`kidney-api` proxy, `reminder-relay`). Users sign in on Base44's hosted login page.
@@ -10,7 +10,7 @@ Needs Node.js 20.19 or newer.
 npm install
 $env:BASE44_API_KEY = "b44k_..."          # your workspace key; the CLI reads it from the environment
 npx base44 whoami                          # should print your account, with no browser login
-npx base44 link --create --name "Kidney Women's Health"    # creates the Base44 app, writes base44\.app.jsonc
+npx base44 link --create --name "Bean Sis"                # creates the Base44 app, writes base44\.app.jsonc
 npx base44 auth password-login enable      # email + password sign-in (Google is on by default)
 npx base44 secrets set KIDNEY_API_URL=https://<your-tunnel-or-domain> KIDNEY_API_SECRET=<APP_SHARED_SECRET> RELAY_SECRET=<REMINDER_WEBHOOK_SECRET>
 ```
@@ -37,9 +37,12 @@ and every call from the deployed site fails.
 (Vite ships those to the browser), and keep `.env` out of git (it's in `.gitignore`).
 
 ## What's where
-- `src/App.jsx`: sign-in gate, navigation (bottom bar on phones, side rail on desktop), routes (`#/symptoms` ...)
+- `src/App.jsx`: sign-in gate, new-user onboarding, navigation (bottom bar on phones, side rail on desktop), routes
+- `src/components/ProfileQuestions.jsx`: new-user profile flow; existing users go straight to the home tabs
 - `src/components/Chat.jsx`: the four question tabs; `Answer.jsx`: cited answer, sources, checks panel, pin
-- `src/components/RideFinder.jsx`, `YouTab.jsx` (board, medications, nutrition, visit prep), `Profile.jsx`
+- `src/components/RideFinder.jsx`, `YouTab.jsx` (board, medications, nutrition, Visit Prep), `Profile.jsx`
+- Visit Prep asks which clinician the patient is seeing, then calls the fast model with the patient's app context;
+  it can use general knowledge and does not require a RAG result. See the Visit Prep section in `README.md`.
 - `src/components/Markdown.jsx`: renders answers as React elements, never raw HTML
-- `src/api/kidney.js`: every call goes through the `kidney-api` function with `{me}` for the current user
+- `src/api/kidney.js`: local API calls or the `kidney-api` function with `{me}` for the current user
 - `tests/frontend/mock-sdk.js`: a fake Base44 SDK with realistic responses, for rendering the UI without a backend

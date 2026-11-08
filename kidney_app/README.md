@@ -1,8 +1,8 @@
-# Kidney Women's Health Assistant
+# Bean Sis
 
-A multi-agent backend that gives women living with kidney disease (CKD, dialysis, transplant) a place to ask
-health questions, check medications, find coverage and doctors, and prepare for visits. Every answer is
-grounded in real sources, passes a safety gate, and carries citations the user can open.
+Bean Sis is a health education app for women living with kidney disease (CKD, dialysis, transplant). It helps
+people ask health questions, check medications, find coverage and doctors, and prepare for visits. Chat answers
+use a safety gate and source checks; Visit Prep uses the patient's saved context and does not require RAG sources.
 
 > **Status: hackathon prototype.** It provides general health education, not medical advice. See
 > [Before real users](#before-real-users).
@@ -24,13 +24,13 @@ Women with kidney disease face questions that general health apps and search eng
 ## The solution
 
 Four specialist chat agents (tabs) share one memory layer, one safety gate, one citation checker, and a shared
-research sub-agent. A "You" area holds the user's own data: pinboard, medications, nutrition, and visit prep.
+research sub-agent. A "You" area holds the user's own data: profile, pinboard, medications, nutrition, and visit prep.
 
 ### Architecture
 
 ```mermaid
 flowchart TD
-    UI["Client UI"] -->|"POST /chat/{tab}"| API["FastAPI (app/api.py)"]
+    UI["Bean Sis UI<br/>login, profile, five tabs"] -->|"POST /chat/{tab}"| API["FastAPI (app/api.py)"]
     API --> SAFE{"Safety gate<br/>rules + fast model"}
     SAFE -->|urgent| FIXED["Fixed urgent message<br/>no agent runs"]
     SAFE -->|ok| MEM["Load memory<br/>profile, thread summary, last N messages"]
@@ -61,7 +61,23 @@ flowchart TD
     SAVE --> STATE
     PRES --> UI
     FIXED --> UI
+
+    UI -->|"POST /you/visit-prep"| VISIT["Visit Prep<br/>app/you/visit_prep.py"]
+    VISIT --> CONTEXT["Build context from profile,<br/>medications, logs, questions, pins"]
+    CONTEXT --> VCACHE{"Per-user cache hit?<br/>same context, 24 hours"}
+    VCACHE -->|hit| SHEET["Printable visit sheet"]
+    VCACHE -->|miss| FAST["MODEL_FAST<br/>factual context summary +<br/>clinician-specific questions"]
+    FAST --> VALIDATE["Validate questions and source IDs"]
+    VALIDATE -->|usable| SAVEVISIT["Cache sheet"]
+    VALIDATE -->|model error or unusable output| FALLBACK["Code-built summary +<br/>curated questions"]
+    FALLBACK --> SAVEVISIT
+    SAVEVISIT --> SHEET
+    SHEET -->|optional pin| STATE
+    SHEET --> UI
 ```
+
+Visit Prep is a separate path from chat: it can use general model knowledge to shape questions, while its summary
+is limited to the patient's stated concerns and saved entries. It does not require the reference database.
 
 Every source found in a turn is saved, so any tab can recall it later.
 
@@ -108,8 +124,9 @@ called "not on label". FAERS isn't filtered by condition (it covers all uses of 
   reviewers' sex isn't recorded. Credit the dataset in the UI wherever review data appears.
 
 ### The You tab (`app/you/`)
-Three windows: **Pinboard**, **My medications**, **Nutrition**. `GET /you/{user_id}` returns all three for the
-tab's first load.
+Four sections: **My board**, **Medications**, **Nutrition**, and **Visit prep**. `GET /you/{user_id}` returns the
+board, medications, today's doses, and today's nutrition for the tab's first load. Profile and onboarding data are
+managed separately.
 
 **Medications** (`POST /you/meds`, `PATCH|DELETE /you/meds/{id}`, `POST /you/meds/{id}/dose`)
 - Users enter name, dose exactly as prescribed, and times (HH:MM, local). Names are normalized with RxNorm.
@@ -127,16 +144,19 @@ tab's first load.
   potassium, phosphorus, protein, and fluids. No calories or weight. Compares only against targets she enters from
   her dietitian (`nutrition_targets` in profile).
 
-**Visit prep** (`POST /you/visit-prep {user_id, visit_type, concerns?, days?, save?}`, in `app/you/visit_prep.py`)
-- `visit_type` is `pcp | obgyn | nephrology | maternal_fetal_medicine`. Returns a printable sheet (`markdown`) plus
-  structured fields.
-- **Facts are built by code** from her own entries: profile, medications exactly as entered, doses she marked,
-  nutrition averages vs her dietitian's targets, and FDA-label interaction flags with the quoted sentence.
-- **Questions are written by the model** from her concerns, recent chat questions, pins, the facts, and a curated
-  standard list per visit type (OB/GYN and nephrology lists change with pregnancy status). Each question must state
-  what it's based on; invented references and anything with dosing language are dropped; each interaction flag always
-  gets a question; if the model fails, the curated list is used.
-- `save: true` pins the sheet to her board.
+**Visit prep** (`GET /you/visit-types`, `POST /you/visit-prep`, in `app/you/visit_prep.py`)
+- The patient must choose a clinician: `pcp | obgyn | nephrology | maternal_fetal_medicine | other`. For `other`,
+  `visit_type_other` names the clinician. The response includes printable `markdown` and structured fields.
+- **Facts are built by code** from the patient's saved entries: age and kidney profile, medications as entered,
+  dose logs, nutrition averages and dietitian targets, recent questions, pins, and available FDA-label interaction
+  flags. The summary cannot infer a diagnosis or risk.
+- **Questions are generated with `MODEL_FAST`** from the chosen clinician, concerns, profile and app context, plus
+  the curated question list. General model knowledge is allowed; a RAG result is not required. OB/GYN and nephrology
+  questions adapt to pregnancy status. Unknown source IDs and dosing language are removed; flagged medication pairs
+  are added as questions by code. If generation fails, a factual code-built summary and the curated questions are
+  returned.
+- A per-user cache reuses a sheet for 24 hours when the model, clinician, concerns, and context are unchanged.
+  `save: true` pins the sheet to the patient's board.
 
 ### Ride finder (`app/tools/transport.py`)
 A step-by-step Medi-Cal ride finder (NMT/NEMT), available as the chat tool `ride_help` and as
@@ -178,7 +198,7 @@ show in the UI. `DELETE /threads/{id}?user_id=` deletes one chat; `DELETE /users
 | Source | Loaded by | Contents |
 |---|---|---|
 | Curated documents (`manifest.csv`, see `manifest_template.csv`) | `ingest.documents` | Research, coverage, and resource articles searched by `search_documents` |
-| `data/raw/resources_manifest.csv` | `ingest.documents` | California and federal coverage pages and support resources, plus patient education on CKD, AKI, kidney infections, glomerular disease, women's kidney health, menopause, pregnancy, and medicines |
+| `data/raw/resources_manifest.csv` | `ingest.documents` | Curated California and federal coverage/support pages plus patient education from sources including Mayo Clinic, NKF, NIDDK, CDC, Kidney Care UK, DaVita, AHA, Fresenius Kidney Care, PubMed Central, and Cleveland Clinic. Topics include CKD, AKI, kidney failure, glomerular disease, women's kidney health, menopause, pregnancy, and medicines. |
 | `data/raw/literature.csv`: the team's core papers (KDIGO 2025 consensus, AHA 2026 statement, pregnancy-outcome reviews, disparities and cardiometabolic papers) | `ingest.documents --literature` (`ingest/literature.py`) | PubMed abstracts only. Each entry's real PubMed title must match its expected title, so a typo'd PMID can't load the wrong paper; skipped entries are listed in `data/literature_report.csv` |
 | [Census ZCTA-to-county relationship file](https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html) | `ingest.ca_transport` | California ZIP -> county for the ride finder |
 | `data/raw/ca_medi_cal_plans.csv` from the [DHCS plan directory](https://www.dhcs.ca.gov/individuals/medi-cal-managed-care-health-plan-directory/) | read directly by `app/tools/transport.py` | Medi-Cal plans per county with verified phone numbers (see `ca_medi_cal_plans_README.md`) |
@@ -198,7 +218,7 @@ Postgres via `DATABASE_URL`.
 |---|---|
 | Language | Python |
 | API | FastAPI, Uvicorn, Pydantic |
-| LLMs | Main model for answers, fast model for safety checks, summaries, and extraction (`MODEL_MAIN`, `MODEL_FAST`). Nebius Token Factory is the default (OpenAI-compatible, via the `openai` SDK); Anthropic is opt-in via `LLM_PROVIDER=anthropic` |
+| LLMs | `MODEL_MAIN` for chat and `MODEL_FAST` for safety checks, Visit Prep, summaries, and extraction. Nebius Token Factory is the default (OpenAI-compatible, via the `openai` SDK); Anthropic is optional and only used when `LLM_PROVIDER=anthropic` is explicitly set |
 | Reference data | DuckDB (read-only, BM25 search) |
 | App state | SQLite locally, Postgres in deployment (SQLAlchemy, psycopg) |
 | Ingestion | pandas, pyarrow, pdfplumber |
@@ -231,10 +251,14 @@ kidney_app/
 │   ├── run.py  components.py  judge.py  metrics.py  scorecard.py  calibrate.py  config.yaml
 │   └── datasets/             # golden, red-team, safety, retrieval, scenarios, personas, labels
 ├── tests/                    # one test_*.py per area, incl. test_llm_adapter and test_security
-├── src/  index.html  package.json  vite.config.js   # React (Vite) frontend; see FRONTEND.md
+├── src/
+│   ├── App.jsx              # login gate, onboarding, routing, and main navigation
+│   ├── api/kidney.js        # local API and Base44 proxy client
+│   └── components/          # chat, profile questions, Visit Prep, medications, resources, doctors
+├── index.html  package.json  vite.config.js         # React (Vite) app; see FRONTEND.md
 ├── base44/                   # Base44 frontend: proxy + reminder-relay functions, FRONTEND_SPEC.md
 ├── deploy/                   # Caddyfile, VM setup, data upload, backups
-├── data/raw/                 # templates + curated lists (resources, literature, Medi-Cal plans); DBs land in data/
+├── data/raw/                 # resource/literature manifests, plans, directory PDFs, and source templates
 ├── .claude/commands/         # load-directories.md: Claude Code command that sets up and loads directory PDFs
 ├── Dockerfile  .dockerignore  docker-compose.yml
 ├── run_local.ps1  LOCAL_RUN.md   # run API + screens on this computer (no VM, no Base44); see LOCAL_RUN.md
