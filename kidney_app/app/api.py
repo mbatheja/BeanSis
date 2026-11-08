@@ -58,6 +58,11 @@ except Exception:
 llm = llm_mod.get_client()   # Defaults to Nebius; Anthropic requires LLM_PROVIDER=anthropic.
 
 
+class AuthIn(BaseModel):
+    username: str
+    password: str
+
+
 def _local_auth_only():
     # Dummy accounts are for the loopback-only local prototype, not deployed authentication.
     if os.getenv("APP_SHARED_SECRET"):
@@ -141,11 +146,6 @@ class ChatIn(BaseModel):
     user_id: str
     message: str
     thread_id: Optional[str] = None
-
-
-class AuthIn(BaseModel):
-    username: str
-    password: str
 
 
 class ProfileIn(BaseModel):
