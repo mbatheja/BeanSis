@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { base44, LOCAL_MODE } from "./api/base44Client";
 import Chat from "./components/Chat";
 import YouTab from "./components/YouTab";
-import { Profile, Privacy } from "./components/Profile";
+import { Privacy } from "./components/Profile";
 import Login from "./components/Login";
 import Onboarding from "./components/Onboarding";
 import Home from "./components/Home";
@@ -80,6 +80,7 @@ export default function App() {
   }
 
   const tab = TABS.find((t) => t.id === route);
+  const signOut = () => base44.auth.logout("/");
   return (
     <div className="shell">
       <a className="skip" href="#main">Skip to content</a>
@@ -87,7 +88,7 @@ export default function App() {
         <a className="brand" href="#/home">{APP_NAME}</a>
         <nav className="top-links" aria-label="Account">
           <a href="#/privacy" aria-current={route === "privacy" ? "page" : undefined}>Privacy</a>
-          <a href="#/profile" aria-current={route === "profile" ? "page" : undefined}>Profile</a>
+          <button className="top-signout" onClick={signOut}>Sign out</button>
         </nav>
       </header>
 
@@ -101,12 +102,11 @@ export default function App() {
 
       <main id="main" className="main">
         {LOCAL_MODE && <p className="banner local">Local test mode: no sign-in, talking to the API on this computer.</p>}
-        <p className="banner">Health education, not medical advice. In an emergency, call 911.</p>
+        {route !== "home" && <p className="banner">Health education, not medical advice. In an emergency, call 911.</p>}
         {route === "home" && <Home user={user} tabs={TABS} onNavigate={go} />}
-        {route === "you" && <YouTab />}
-        {route === "profile" && <Profile />}
+        {(route === "you" || route === "profile") && <YouTab initialSection={route === "profile" ? "profile" : "board"} />}
         {route === "privacy" && <Privacy />}
-        {tab && route !== "you" && <Chat key={route} tab={route} intro={tab.intro} onNavigate={go} />}
+        {tab && route !== "you" && <Chat key={route} tab={route} label={tab.label} intro={tab.intro} onNavigate={go} />}
       </main>
     </div>
   );

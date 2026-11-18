@@ -12,7 +12,6 @@ Two parts, built differently on purpose:
 STANDARD QUESTIONS are an engineer's starter list. Have a nephrologist and an OB review them.
 """
 import json
-import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -156,7 +155,7 @@ def gather(store, user_id, days=30, check_interactions=True):
         try:
             inter = meds_mod.check_interactions(store, user_id)
         except Exception:
-            log.exception("Visit prep interaction context failed for user %s", user_id)
+            log.exception("Visit prep interaction context failed")
     flags = []
     if inter:
         for p in inter["pairs"]:
@@ -180,7 +179,7 @@ def gather(store, user_id, days=30, check_interactions=True):
     try:
         facts["nutrition_last_n_days"] = _nutrition(store, user_id, since_date.isoformat(), today.isoformat())
     except Exception:
-        log.exception("Visit prep nutrition context failed for user %s", user_id)
+        log.exception("Visit prep nutrition context failed")
     pins = store.board(user_id)["pinned_answers"]
     pin_view, sources = [], {}
     for p in pins[:10]:
@@ -264,28 +263,17 @@ def generate(store, llm, user_id, visit_type, concerns=None, days=30, n_min=8, n
         raise ValueError(f"visit_type must be one of {list(VISIT_TYPES)}")
     if visit_type == "other" and not (visit_type_other or "").strip():
         raise ValueError("Tell us what kind of doctor or clinician you are visiting.")
-    # Build a quick context signature first. If this exact visit sheet is cached, avoid
-    # repeating the optional FDA-label interaction lookup and model generation.
+    # Drafts stay in the caller's session until the patient explicitly saves them.
     ctx = gather(store, user_id, days, check_interactions=False)
     life_stage = ctx["facts"]["profile"].get("life_stage")
     std = standard_questions(visit_type, life_stage)
     visit_label = (visit_type_other or "").strip() if visit_type == "other" else VISIT_TYPES[visit_type]
     allowed = sorted({s["source_id"] for s in ctx["sources"]})
-    cache_payload = {"version": 2, "model": config.MODEL_FAST, "visit_type": visit_type,
-                     "visit_label": visit_label, "concerns": (concerns or "")[:1500], "days": days,
-                     "context": ctx, "standard": std}
-    cache_key = hashlib.sha256(json.dumps(cache_payload, sort_keys=True, default=str).encode()).hexdigest()
-    try:
-        cached = store.get_visit_prep_cache(user_id, cache_key)
-        if cached:
-            return cached
-    except Exception:
-        log.exception("Visit prep cache read failed for user %s", user_id)
     if len(ctx["facts"]["medications"]) > 1:
         try:
             ctx = gather(store, user_id, days, check_interactions=True)
         except Exception:
-            log.exception("Visit prep extended context failed for user %s", user_id)
+            log.exception("Visit prep extended context failed")
     prompt = PROMPT.format(visit_label=visit_label, n_min=n_min, n_max=n_max, bases=sorted(BASES),
                            profile=json.dumps(ctx["facts"]["profile"]), facts=json.dumps(ctx["facts"], default=str),
                            concerns=(concerns or "(none given)")[:1500], recent=json.dumps(ctx["recent_questions"]),
@@ -330,10 +318,6 @@ def generate(store, llm, user_id, visit_type, concerns=None, days=30, n_min=8, n
              "notices": [NOTICE] + ([meds_mod.ALWAYS_NOTICE] if ctx["facts"]["interaction_flags"] else []),
              "validation": {"dropped": dropped, "fell_back_to_standard": not bool(raw)}}
     sheet["markdown"] = to_markdown(sheet)
-    try:
-        store.set_visit_prep_cache(user_id, cache_key, sheet)
-    except Exception:
-        log.exception("Visit prep cache write failed for user %s", user_id)
     return sheet
 
 

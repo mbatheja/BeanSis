@@ -1,4 +1,6 @@
 {$DOMAIN} {
+	@metrics path /metrics
+	respond @metrics 404
 	encode gzip
 	request_body {
 		max_size 1MB

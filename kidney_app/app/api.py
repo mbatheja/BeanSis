@@ -10,11 +10,13 @@ import hmac
 import secrets
 import threading
 import time
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from fastapi.responses import Response
 
 from . import agents, appstate, config, llm as llm_mod, orchestrator, security
 from .you import meds as meds_mod
@@ -22,6 +24,12 @@ from .you import nutrition as nutrition_mod
 from .you import visit_prep as visit_prep_mod
 
 app = FastAPI(title="Bean Sis API")
+HTTP_REQUESTS = Counter("beansis_http_requests_total", "HTTP requests", ("method", "route", "status"))
+HTTP_DURATION = Histogram("beansis_http_request_duration_seconds", "HTTP request duration", ("method", "route"),
+                          buckets=(.05, .1, .25, .5, 1, 2, 5, 10, 30, 60))
+INGESTION_LAST_SUCCESS = Gauge("beansis_ingestion_last_success_timestamp_seconds", "Unix timestamp of last successful ingestion", ("operation",))
+INGESTION_LAST_RUN = Gauge("beansis_ingestion_last_run_timestamp_seconds", "Unix timestamp of latest ingestion run", ("operation",))
+INGESTION_LAST_RUN_SUCCESS = Gauge("beansis_ingestion_last_run_success", "Whether the latest ingestion run succeeded", ("operation",))
 # The browser never calls this API directly (it goes through the Base44 proxy), so CORS is closed unless
 # ALLOWED_ORIGINS is set, e.g. for local frontend development.
 _origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
@@ -40,12 +48,38 @@ async def guard(request, call_next):
         if not _limiter.allow(uid):
             return JSONResponse({"error": "Too many requests. Please wait a minute and try again."},
                                 status_code=429)
-    return await call_next(request)
+    started = time.perf_counter()
+    response = await call_next(request)
+    route = request.scope.get("route")
+    route_name = getattr(route, "path", "unmatched") or "unmatched"
+    # Use route templates only; never label metrics with query strings, ZIP codes, or user IDs.
+    HTTP_REQUESTS.labels(request.method, route_name, str(response.status_code)).inc()
+    HTTP_DURATION.labels(request.method, route_name).observe(time.perf_counter() - started)
+    return response
 
 
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    import json
+    status_path = os.path.join(config.DATA_DIR, "ingestion_status.json")
+    try:
+        with open(status_path, encoding="utf-8") as f:
+            status = json.load(f)
+        for operation, details in status.items():
+            if details.get("last_success_epoch"):
+                INGESTION_LAST_SUCCESS.labels(operation).set(float(details["last_success_epoch"]))
+            if details.get("last_run_epoch"):
+                INGESTION_LAST_RUN.labels(operation).set(float(details["last_run_epoch"]))
+            if details.get("last_status"):
+                INGESTION_LAST_RUN_SUCCESS.labels(operation).set(1 if details["last_status"] == "success" else 0)
+    except (OSError, ValueError, TypeError):
+        pass
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 store = appstate.Store()
 
@@ -183,7 +217,7 @@ def list_tabs():
 
 @app.post("/chat/{tab}")
 def chat(tab: str, body: ChatIn):
-    if tab not in agents.TABS:
+    if tab != "auto" and tab not in agents.TABS:
         raise HTTPException(404, f"unknown tab {tab}")
     return orchestrator.handle_chat(store, llm, body.user_id, tab, body.message, body.thread_id)
 
@@ -430,7 +464,7 @@ class VisitPrepIn(BaseModel):
     visit_type_other: Optional[str] = None
     concerns: Optional[str] = None      # what she wants to bring up, in her words
     days: int = 30                      # how far back to look at her logs and questions
-    save: bool = False                  # also pin the sheet to her board
+    save: bool = False                  # legacy clients may explicitly approve at generation time
 
 
 @app.post("/you/visit-prep")
@@ -443,7 +477,7 @@ def visit_prep(body: VisitPrepIn):
         raise HTTPException(422, str(e))
     except Exception as e:
         import logging
-        logging.getLogger(__name__).exception("Visit prep generation failed for user %s", body.user_id)
+        logging.getLogger(__name__).exception("Visit prep generation failed")
         raise HTTPException(503, "Visit prep is temporarily unavailable. Your other sections are still available.") from e
     if body.save:
         sheet["pin_id"] = store.pin_snapshot(
@@ -451,3 +485,52 @@ def visit_prep(body: VisitPrepIn):
             {"kind": "visit_prep", "answer_display": sheet["markdown"], "citations": sheet["citations"],
              "notices": sheet["notices"], "sheet": {k: v for k, v in sheet.items() if k != "markdown"}})
     return sheet
+
+
+class VisitPrepSaveIn(BaseModel):
+    user_id: str
+    sheet: Dict[str, Any]
+    markdown: str
+
+
+@app.post("/you/visit-prep/save")
+def save_visit_prep(body: VisitPrepSaveIn):
+    """Save the patient's reviewed and optionally edited visit-prep draft to their board."""
+    sheet = dict(body.sheet)
+    visit_label = str(sheet.get("visit_label") or "Visit")[:120]
+    if not sheet.get("generated_at") or not isinstance(sheet.get("facts"), dict):
+        raise HTTPException(422, "This visit sheet is incomplete. Generate a new sheet before saving.")
+    markdown = body.markdown.strip()
+    if not markdown or len(markdown) > 20000:
+        raise HTTPException(422, "The edited visit sheet must contain 1–20,000 characters.")
+    sheet["markdown"] = markdown
+    pin_id = store.pin_snapshot(
+        body.user_id, "you", f"Visit prep: {visit_label} ({str(sheet['generated_at'])[:10]})",
+        {"kind": "visit_prep", "answer_display": markdown, "citations": sheet.get("citations", []),
+         "notices": sheet.get("notices", []), "sheet": {k: v for k, v in sheet.items() if k != "markdown"}})
+    return {"pin_id": pin_id, "saved": True}
+
+
+# The orchestrator's allowlisted A2A directory. Each non-research worker is an independent
+# A2A endpoint with its own Agent Card, while the research peer runs as a separate Compose service.
+from .a2a_registry import card_urls, rpc_urls
+from .a2a_specialists import card_summary, mount_specialists
+
+_a2a_cards = mount_specialists(app, store, llm, config.A2A_API_BASE_URL)
+
+
+@app.get("/a2a/registry")
+def a2a_registry():
+    urls = card_urls()
+    rpc = rpc_urls()
+    local = {name: card_summary(name, card,
+             urls[name])
+             for name, card in _a2a_cards.items()}
+    for name in local:
+        local[name]["endpoint"] = rpc[name]
+    local["research"] = {"id": "research", "name": "Bean Sis Research",
+        "description": "Read-only kidney literature search and synthesis.",
+        "agent_card_url": urls["research"],
+        "endpoint": rpc["research"],
+        "skills": [{"id": "kidney-literature", "tags": ["kidney", "CKD", "dialysis", "transplant", "pregnancy"]}]}
+    return {"agents": local, "allowed_agents": list(local)}

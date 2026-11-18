@@ -1,0 +1,19 @@
+{
+  "uid": "beansis-overview",
+  "title": "Bean Sis Overview",
+  "tags": ["beansis", "operations"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    { "id": 1, "title": "API request rate", "type": "timeseries", "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }, "targets": [{ "expr": "sum by (route) (rate(beansis_http_requests_total[5m]))", "legendFormat": "{{route}}" }], "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] } },
+    { "id": 2, "title": "API latency (p50 / p95)", "type": "timeseries", "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }, "targets": [{ "expr": "histogram_quantile(0.50, sum by (le) (rate(beansis_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p50" }, { "expr": "histogram_quantile(0.95, sum by (le) (rate(beansis_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95" }], "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] } },
+    { "id": 3, "title": "LLM requests and errors", "type": "timeseries", "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }, "targets": [{ "expr": "sum by (outcome, model) (rate(beansis_llm_requests_total[5m]))", "legendFormat": "{{model}} / {{outcome}}" }], "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] } },
+    { "id": 4, "title": "LLM request latency (p95)", "type": "timeseries", "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }, "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, model) (rate(beansis_llm_request_duration_seconds_bucket[5m])))", "legendFormat": "{{model}}" }], "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] } },
+    { "id": 5, "title": "Last successful reference refresh (hours ago)", "type": "stat", "gridPos": { "x": 0, "y": 16, "w": 12, "h": 5 }, "targets": [{ "expr": "(time() - beansis_ingestion_last_success_timestamp_seconds) / 3600", "legendFormat": "{{operation}}" }], "fieldConfig": { "defaults": { "unit": "h", "noValue": "No refresh recorded" }, "overrides": [] } },
+    { "id": 6, "title": "HTTP 5xx rate", "type": "timeseries", "gridPos": { "x": 12, "y": 16, "w": 12, "h": 5 }, "targets": [{ "expr": "sum(rate(beansis_http_requests_total{status=~\"5..\"}[5m]))", "legendFormat": "5xx / sec" }], "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] } },
+    { "id": 7, "title": "Latest ingestion succeeded (1 = yes)", "type": "stat", "gridPos": { "x": 0, "y": 21, "w": 12, "h": 5 }, "targets": [{ "expr": "beansis_ingestion_last_run_success", "legendFormat": "{{operation}}" }], "fieldConfig": { "defaults": { "min": 0, "max": 1, "noValue": "No run recorded", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] } }
+  ]
+}

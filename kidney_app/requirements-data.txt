@@ -1,0 +1,3 @@
+# Optional data versioning and reproducible ingestion tooling.
+-r requirements.txt
+dvc>=3.50,<4

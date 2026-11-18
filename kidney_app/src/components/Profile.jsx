@@ -60,7 +60,6 @@ export function Profile() {
       </form>
 
       <div className="account">
-        <button className="btn quiet" onClick={() => base44.auth.logout("/")}>Sign out</button>
         <button className="btn danger" onClick={erase}>Delete all my data</button>
       </div>
     </section>
@@ -83,7 +82,7 @@ export function Privacy() {
       <h3>What we don’t do</h3>
       <p>We don’t sell your information or share it with advertisers. Reminder emails say only the time, never the names of your medicines.</p>
       <h3>Deleting your data</h3>
-      <p>Go to your profile and choose "Delete all my data". Everything listed above is erased right away.</p>
+      <p>Open You, choose Profile, then select "Delete all my data". Everything listed above is erased right away.</p>
       <h3>Sources</h3>
       <p>Answers draw on FDA drug labels and adverse event reports, PubMed research, clinical guidelines, ClinicalTrials.gov, the national provider registry, Medi-Cal and Medicare pages, and patient reviews from Drugs.com (DrugRev dataset, CC BY 4.0).</p>
     </section>

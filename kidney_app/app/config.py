@@ -16,6 +16,9 @@ CACHE_DB = Path(os.getenv("CACHE_DB", DATA_DIR / "http_cache.sqlite"))
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "nebius")
 NEBIUS_API_KEY = os.getenv("NEBIUS_API_KEY")
 NEBIUS_BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.eu-north1.nebius.com/v1/")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B")
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "4096"))
+ENABLE_SEMANTIC_INDEX = os.getenv("ENABLE_SEMANTIC_INDEX", "0") == "1"
 # Optional: run the eval judge on a different provider than the app (so a model doesn't grade itself).
 JUDGE_PROVIDER = os.getenv("JUDGE_PROVIDER")
 
@@ -23,9 +26,9 @@ JUDGE_PROVIDER = os.getenv("JUDGE_PROVIDER")
 # With LLM_PROVIDER=nebius use exact Token Factory IDs, e.g. "Qwen/Qwen3-30B-A3B-Instruct-2507".
 MODEL_MAIN = os.getenv("MODEL_MAIN", "moonshotai/Kimi-K3.1-Pro")
 MODEL_FAST = os.getenv("MODEL_FAST", "Qwen/Qwen3-30B-A3B-Instruct-2507")
-MAX_TOKENS = int(os.getenv("MAX_TOKENS", "1500"))
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "1000"))
 
-MAX_TOOL_ROUNDS = int(os.getenv("MAX_TOOL_ROUNDS", "3"))
+MAX_TOOL_ROUNDS = int(os.getenv("MAX_TOOL_ROUNDS", "2"))
 MAX_REVISIONS = int(os.getenv("MAX_REVISIONS", "1"))              # evaluator-optimizer retries (0 disables)
 REVISION_TOOL_ROUNDS = int(os.getenv("REVISION_TOOL_ROUNDS", "1"))  # tool rounds allowed during a revision
 HISTORY_TURNS = int(os.getenv("HISTORY_TURNS", "6"))        # recent messages sent verbatim
@@ -42,6 +45,12 @@ SAFETY_LLM_CHECK = os.getenv("SAFETY_LLM_CHECK", "1") == "1"  # rules always run
 NCBI_API_KEY = os.getenv("NCBI_API_KEY")        # optional; raises PubMed limit to 10 req/s
 OPENFDA_API_KEY = os.getenv("OPENFDA_API_KEY")  # optional
 CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "team@example.com")  # NCBI asks for a contact
+A2A_RESEARCH_URL = os.getenv("A2A_RESEARCH_URL", "http://127.0.0.1:8002")
+RESEARCH_AGENT_A2A_URL = os.getenv("RESEARCH_AGENT_A2A_URL")
+A2A_API_BASE_URL = os.getenv("A2A_API_BASE_URL", "http://127.0.0.1:8000")
+A2A_SPECIALISTS_ENABLED = os.getenv("A2A_SPECIALISTS_ENABLED", "0") == "1"
+A2A_SPECIALIST_TIMEOUT_SECONDS = float(os.getenv("A2A_SPECIALIST_TIMEOUT_SECONDS", "28"))
+A2A_RESEARCH_TIMEOUT_SECONDS = float(os.getenv("A2A_RESEARCH_TIMEOUT_SECONDS", "18"))
 
 TTL = {  # cache lifetimes (seconds), matched to how often each source changes
     "pubmed": 3 * 86400,

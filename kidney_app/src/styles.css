@@ -74,8 +74,11 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .welcome .lede { font-size: var(--step-1); line-height: 1.5; margin-bottom: 1.5rem; }
 .welcome .btn { margin-bottom: 1rem; }
 .auth-screen, .onboarding.page { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem 1rem 5rem; }
+.auth-screen { background: var(--sage); padding: clamp(1rem, 4vw, 3rem); }
 .auth-panel, .onboarding-panel { width: min(100%, 42rem); max-width: none; }
-.auth-panel { width: min(100%, 28rem); }
+.auth-panel { width: min(100%, 30rem); padding: clamp(1.5rem, 5vw, 2.75rem); border-radius: 1.25rem; box-shadow: 0 1.25rem 3rem rgb(21 45 26 / 18%); }
+.auth-brand { color: var(--sage); font-size: clamp(2.4rem, 8vw, 3.25rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.05; margin: 0 0 0.4em; }
+.auth-panel h1 { font-size: var(--step-2); }
 .eyebrow { color: var(--sage); font-size: var(--step--1); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .auth-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; padding: 0.25rem; margin: 1.25rem 0; background: var(--paper); border: 1px solid var(--rule); border-radius: var(--radius-m); }
 .auth-switch button { font: inherit; font-weight: 700; color: var(--ink-2); background: transparent; border: 0; border-radius: var(--radius-s); min-height: 44px; cursor: pointer; }
@@ -84,11 +87,17 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .landing-welcome { padding-top: 20vh; }
 .home-page { max-width: 76rem; margin: 0 auto; }
 .home-page h1 { font-size: clamp(2rem, 4vw, 3rem); color: var(--sage); }
+.home-notice { color: var(--ink-2); background: var(--sage-tint); border-left: 4px solid var(--sage); border-radius: 0 var(--radius-s) var(--radius-s) 0; padding: 0.65rem 0.85rem; margin: 0 0 1.35rem; }
 .home-page h2 { margin: 1.75rem 0 1rem; }
 .home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-.home-tile { aspect-ratio: 1 / 1; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; padding: clamp(1rem, 2vw, 1.5rem); text-align: left; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); cursor: pointer; transition: border-color 120ms ease, background 120ms ease, transform 120ms ease; }
-.home-tile:hover { border-color: var(--sage); background: var(--sage-tint); transform: translateY(-2px); }
-.home-tile-title { color: var(--sage); font-size: var(--step-2); font-weight: 700; }
+.home-tile { min-height: 15rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; padding: clamp(1rem, 2vw, 1.5rem); text-align: left; font: inherit; color: var(--ink); background: var(--tile-tint, var(--sage-tint)); border: 1px solid transparent; border-radius: var(--radius-m); cursor: pointer; transition: border-color 120ms ease, filter 120ms ease, transform 120ms ease; }
+.home-tile-symptoms, .home-tile-resources, .home-tile-you { --tile-tint: #E8F0E9; }
+.home-tile-medications, .home-tile-doctors { --tile-tint: #F3EFE6; }
+.home-tile:hover { border-color: var(--sage); filter: saturate(1.12); transform: translateY(-2px); }
+.home-tile-heading { display: grid; justify-items: start; gap: 0.9rem; }
+.home-tile-icon { width: 3rem; height: 3rem; display: grid; place-items: center; border-radius: 0.85rem; color: #fff; background: var(--sage); }
+.home-tile-icon-svg { width: 1.6rem; height: 1.6rem; }
+.home-tile-title { color: var(--ink); font-size: var(--step-2); font-weight: 700; }
 @media (max-width: 700px) { .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; } .home-tile { padding: 0.9rem; } .home-tile-title { font-size: var(--step-1); } }
 
 /* Shell: phone first ------------------------------------------------------ */
@@ -99,8 +108,10 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
   position: sticky; top: 0; z-index: 5;
 }
 .brand { display: inline-flex; align-items: center; padding: 0.35rem 0.75rem; border-radius: var(--radius-s); background: transparent; color: #fff; font-weight: 700; text-decoration: none; }
-.top-links { display: flex; gap: 1rem; }
+.top-links { display: flex; align-items: center; gap: 1rem; }
 .top-links a { text-decoration: none; color: #fff; }
+.top-signout { color: #fff; background: transparent; border: 0; padding: 0.35rem 0; font: inherit; cursor: pointer; }
+.top-signout:hover { text-decoration: underline; text-underline-offset: 0.25rem; }
 .top-links a[aria-current="page"] { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 0.25rem; }
 .topbar a:focus-visible { outline-color: #fff; }
 .tabs {
@@ -126,7 +137,12 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 
 /* Chat -------------------------------------------------------------------- */
 .chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+.chat-heading { grid-column: 1 / -1; }
+.chat-heading h1 { color: var(--sage); font-size: var(--step-3); margin: 0 0 0.45rem; }
+.chat-heading .intro { max-width: var(--measure); margin: 0; font-size: var(--step-1); }
 .chat-toolbar { display: flex; grid-column: 1 / -1; justify-content: flex-start; gap: 0.5rem; }
+.icon-action { width: 2.75rem; height: 2.75rem; min-width: 2.75rem; padding: 0.55rem; display: inline-grid; place-items: center; }
+.icon-action svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .threads ul { list-style: none; margin: 0; padding: 0; }
 .threads-title { font-size: var(--step--1); color: var(--ink-2); margin: 0 0 0.6rem; font-weight: 700; }
 .threads { min-width: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 0.8rem; }
@@ -141,7 +157,6 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .chat.history-open .threads { position: sticky; top: 7rem; align-self: start; max-height: calc(100vh - 8rem); overflow-y: auto; }
 .conversation { min-width: 0; max-width: var(--measure); width: 100%; }
 .tool-bar { margin-bottom: 1rem; }
-.empty .intro { font-size: var(--step-1); }
 .starters { display: grid; gap: 0.5rem; margin-bottom: 1.5rem; }
 .starter {
   font: inherit; text-align: left; cursor: pointer; color: var(--ink);
@@ -245,12 +260,13 @@ a.cite:hover { background: #3B5C41; }
 .checklist, .fallbacks { padding-left: 1.2rem; }
 .checklist li, .fallbacks li { margin-bottom: 0.4rem; }
 
-.segments { display: flex; gap: 0; overflow-x: auto; margin-bottom: 1rem; border-bottom: 1px solid var(--rule); }
+.segments { display: flex; flex-wrap: nowrap; gap: 0.4rem; margin-bottom: 1rem; overflow-x: auto; scrollbar-width: none; }
+.segments::-webkit-scrollbar { display: none; }
 .segments button {
-  font: inherit; background: none; border: 0; cursor: pointer; color: var(--ink-2); white-space: nowrap;
-  padding: 0.6rem clamp(0.45rem, 2vw, 0.9rem); border-bottom: 3px solid transparent; margin-bottom: -1px;
+  font: inherit; background: var(--sage-tint); border: 1px solid transparent; border-radius: var(--radius-s); cursor: pointer; color: var(--ink-2);
+  padding: 0.55rem 0.75rem; min-width: max-content; white-space: nowrap;
 }
-.segments button.active { color: var(--maroon); font-weight: 700; border-bottom-color: var(--maroon); }
+.segments button.active { color: #fff; background: var(--sage); font-weight: 700; border-color: var(--sage); }
 .pin { border-top: 1px solid var(--rule); padding-top: 0.9rem; margin-top: 0.9rem; }
 .pin details summary { cursor: pointer; color: var(--maroon); margin-bottom: 0.5rem; }
 .doses { list-style: none; margin: 0; padding: 0; }
@@ -307,5 +323,5 @@ thead th { color: var(--ink-2); }
   .cite { color: #000; background: none; border: 1px solid #000; }
 }
 
-@media (max-width: 420px) { .segments button { font-size: 0.95rem; } }
+@media (max-width: 600px) { .segments button { font-size: 0.95rem; padding-inline: 0.65rem; } }
 .number, .other-lines .btn, .fallbacks a[href^='tel:'] { white-space: nowrap; }

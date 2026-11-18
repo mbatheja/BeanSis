@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from "react";
 import Markdown from "./Markdown";
 import { api } from "../api/kidney";
+import { Profile } from "./Profile";
 
-const SECTIONS = [["board", "My board"], ["meds", "Medications"], ["food", "Nutrition"], ["visit", "Visit prep"]];
+const SECTIONS = [["board", "My board"], ["meds", "Medications"], ["food", "Nutrition"], ["visit", "Visit prep"], ["profile", "Profile"]];
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const NUTRIENTS = [["sodium_mg", "Sodium", "mg"], ["potassium_mg", "Potassium", "mg"], ["phosphorus_mg", "Phosphorus", "mg"],
                    ["protein_g", "Protein", "g"], ["fluids_ml", "Fluids", "ml"]];
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString("en-CA"); };
 
-export default function YouTab() {
-  const [section, setSection] = useState("board");
+export default function YouTab({ initialSection = "board" }) {
+  const [section, setSection] = useState(initialSection);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -31,6 +32,7 @@ export default function YouTab() {
       {data && section === "meds" && <Meds data={data} onChange={reload} />}
       {data && section === "food" && <Nutrition onChange={reload} />}
       {data && section === "visit" && <VisitPrepBoundary><VisitPrep /></VisitPrepBoundary>}
+      {section === "profile" && <Profile />}
     </div>
   );
 }
@@ -304,9 +306,11 @@ class VisitPrepBoundary extends React.Component {
 
 function VisitPrep() {
   const [types, setTypes] = useState(null);
-  const [form, setForm] = useState({ visit_type: "", visit_type_other: "", concerns: "", save: true });
+  const [form, setForm] = useState({ visit_type: "", visit_type_other: "", concerns: "" });
   const [sheet, setSheet] = useState(null);
+  const [editedMarkdown, setEditedMarkdown] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -325,9 +329,25 @@ function VisitPrep() {
   const make = async (e) => {
     e.preventDefault();
     setBusy(true); setError(null);
-    try { setSheet(await api("POST", "/you/visit-prep", { body: form })); }
+    try {
+      const draft = await api("POST", "/you/visit-prep", { body: form });
+      setSheet(draft);
+      setEditedMarkdown(draft.markdown || "");
+    }
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
+  };
+
+  const save = async () => {
+    if (!sheet || saving) return;
+    setSaving(true); setError(null);
+    try {
+      const result = await api("POST", "/you/visit-prep/save", {
+        body: { sheet, markdown: editedMarkdown },
+      });
+      setSheet({ ...sheet, markdown: editedMarkdown, pin_id: result.pin_id, saved: true });
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -347,7 +367,6 @@ function VisitPrep() {
           <label>Anything you want to bring up? (optional)
             <textarea rows={3} value={form.concerns} onChange={(e) => setForm({ ...form, concerns: e.target.value })}
                       placeholder="For example, my ankles have been swelling at night" /></label>
-          <label className="row"><input type="checkbox" checked={form.save} onChange={(e) => setForm({ ...form, save: e.target.checked })} /> Save the sheet to my board</label>
           <button className="btn primary" disabled={busy || !types || !form.visit_type || (form.visit_type === "other" && !form.visit_type_other.trim())}>{busy ? "Making your sheet…" : "Make my visit sheet"}</button>
           {error && <p className="error">{error}</p>}
         </form>
@@ -356,10 +375,15 @@ function VisitPrep() {
         <div className="sheet">
           <div className="sheet-actions no-print">
             <button className="btn primary" onClick={() => window.print()}>Print</button>
-            <button className="btn quiet" onClick={() => setSheet(null)}>Make another</button>
-            {sheet.pin_id && <span className="fine">Saved to your board.</span>}
+            {!sheet.saved && <button className="btn primary" disabled={saving || !editedMarkdown.trim()} onClick={save}>{saving ? "Saving…" : "Save reviewed sheet to my board"}</button>}
+            <button className="btn quiet" onClick={() => { setSheet(null); setEditedMarkdown(""); setError(null); }}>Make another</button>
+            {sheet.saved && <span className="fine">Saved to your board.</span>}
           </div>
-          <div className="printable"><Markdown text={sheet.markdown} /></div>
+          {!sheet.saved && <label className="no-print">Review and edit your visit sheet before saving
+            <textarea rows={18} value={editedMarkdown} onChange={(e) => setEditedMarkdown(e.target.value)} />
+          </label>}
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="printable"><Markdown text={sheet.saved ? sheet.markdown : editedMarkdown} /></div>
         </div>
       )}
     </section>

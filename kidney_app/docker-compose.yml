@@ -2,10 +2,53 @@ services:
   api:
     build: .
     env_file: .env
+    environment:
+      RESEARCH_AGENT_A2A_URL: http://research-agent:8002
+      A2A_RESEARCH_URL: http://research-agent:8002
+      A2A_API_BASE_URL: http://api:8000
+      A2A_SPECIALISTS_ENABLED: "1"
     volumes:
       - ./data:/app/data            # persistent: reference.duckdb (read-only use) + app.db (user data)
+    depends_on:
+      research-agent:
+        condition: service_healthy
     restart: unless-stopped
     expose: ["8000"]                # only reachable through Caddy, never directly from the internet
+
+  research-agent:
+    build: .
+    env_file: .env
+    environment:
+      A2A_RESEARCH_URL: http://research-agent:8002
+      CACHE_DB: /app/cache/http_cache.sqlite
+    command: ["python", "-m", "app.a2a_research", "--host", "0.0.0.0", "--port", "8002"]
+    volumes:
+      - ./data:/app/data:ro          # literature agent is read-only
+      - research_cache:/app/cache
+    restart: unless-stopped
+    expose: ["8002"]                # A2A peer available to the private compose network
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8002/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mcp-tools:
+    build: .
+    env_file: .env
+    command: ["python", "-m", "app.mcp_server"]
+    environment:
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8001
+      CACHE_DB: /app/cache/http_cache.sqlite
+    volumes:
+      - ./data:/app/data:ro
+      - mcp_cache:/app/cache
+    restart: unless-stopped
+    expose: ["8001"]                # MCP tools are not exposed through public Caddy routes
+    healthcheck:
+      disable: true
 
   caddy:
     image: caddy:2
@@ -18,5 +61,35 @@ services:
     depends_on: [api]
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on: [api]
+    restart: unless-stopped
+    expose: ["9090"]
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set a strong GRAFANA_ADMIN_PASSWORD in .env before starting Compose}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_ADDR: 0.0.0.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"       # reach remotely only through an SSH tunnel
+
 volumes:
   caddy_data:
+  research_cache:
+  mcp_cache:
+  prometheus_data:
+  grafana_data:

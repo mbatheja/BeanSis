@@ -134,7 +134,28 @@ curl -i https://api.yourdomain.com/board?user_id=x            # 401: the secret 
 6. Test the `reminder-relay` user lookup (`entities.User.get`) in your app; adjust if your app's user
    model differs.
 
-## 6. Smoke test (with a synthetic test account)
+## 6. CI/CD with GitHub Actions
+`.github/workflows/ci-cd.yml` runs on pull requests and pushes to `main`. It installs the Python dependencies
+and runs `pytest tests/`, builds the frontend with `npm ci && npm run build`, and builds the Docker image. A push
+to `main` deploys only after all three jobs pass. The deployment SSHes into the VM, fetches the exact commit,
+requires a clean server checkout, rebuilds the Compose services, checks API health and reference tables, and
+rebuilds the previous commit if the release fails. The persistent `data/` volume and VM `.env` stay in place.
+
+Configure GitHub Actions secrets:
+
+- `DEPLOY_HOST`: VM hostname or IP.
+- `DEPLOY_USER`: SSH user (typically `ubuntu`).
+- `DEPLOY_SSH_KEY`: private key whose public key is authorized for that user on the VM.
+- `DEPLOY_KNOWN_HOSTS`: pinned SSH host-key line(s) for the VM.
+
+Optional repository variable `DEPLOY_PATH` defaults to `/home/ubuntu/kidney_app`. The VM checkout must have
+`origin` configured and be able to fetch `main` (for a private GitHub repo, give the VM a read-only deploy key).
+Keep `.env` and all API keys on the VM/GitHub secret store; the workflow never copies them into the image.
+Before enabling automatic deployment, make sure schema changes remain backward-compatible and the existing
+app-data backup job is active: code rollback does not reverse a database schema migration. The workflow does
+not deploy DVC/reference-data artifacts; those still use the separate ingestion and data-promotion process.
+
+## 7. Smoke test (with a synthetic test account)
 Log in, set a profile, ask one question per tab, pin an answer, add two medications and run the
 interaction check, log a meal, generate a visit sheet, add a medication with a reminder 2 minutes out
 and confirm the email arrives, then use "Delete all my data" and confirm the You tab is empty.
@@ -156,9 +177,20 @@ Notes:
 ## Day 2
 - **Update**: `git pull && docker compose up -d --build` (user data on the mounted disk survives).
 - **New reference data**: rebuild locally, `push_data.sh`, `docker compose restart api`.
+- **Scheduled reference refreshes**: on the Linux VM, install the entries in `deploy/reference-refresh.cron`
+  with `crontab -e` (edit the repository path first). ClinicalTrials.gov refreshes weekly, the curated and
+  topic-search PubMed literature plus PDFs under `data/raw/pdfs/` refresh daily, and insurer directories are
+  reprocessed monthly. Topic searches cover the most recent two years, up to 30 results per topic; PubMed
+  metadata responses are cached and revalidated. Each job builds against a staged copy of DuckDB, verifies
+  required tables, then briefly stops the
+  API/A2A/MCP readers for an atomic database swap; on failure the current DB stays active. Review
+  `deploy/reference-refresh.log` after installation. Directory PDFs are not auto-downloaded: replace the files
+  and update `data/raw/directories.csv`/`directory_date` first, and sync `data/raw/Provider_Directory/` to the VM.
+  The large monthly NPPES file also remains a manual download/update; run `ingest.providers` after staging it.
 - **Backups**: `crontab -e` -> `0 3 * * * bash ~/kidney_app/deploy/backup.sh` (14 days kept on the VM;
   also copy them off the VM, e.g. to Nebius Object Storage).
-- **Logs**: `docker compose logs -f api`. Don't add logging of prompts or answers: they contain health data.
+- **Observability**: Prometheus scrapes API and LLM request/latency metrics every 15 seconds. Grafana is available on VM loopback port 3000 only; set a strong `GRAFANA_ADMIN_PASSWORD` in `.env`, then connect with `ssh -L 3000:127.0.0.1:3000 <vm-user>@<vm-host>` and open `http://localhost:3000`. The provisioned `Bean Sis Overview` dashboard shows API request rate/latency, LLM request rate/latency, 5xx rate, and last successful reference refresh. Prometheus keeps 15 days of metrics. Metrics never include prompts, answers, user IDs, ZIP codes, or query values. `/metrics` is denied by Caddy and is only reachable inside Compose. Logs remain available with `docker compose logs -f api`; do not log prompts or answers because they contain health data.
+  Setup and metric definitions: [deploy/observability/README.md](deploy/observability/README.md).
 - **Scaling note**: one API container by design (SQLite + in-process reminder loop). If you need more,
   move to Postgres (`DATABASE_URL`) and run reminders as a separate single worker first.
 

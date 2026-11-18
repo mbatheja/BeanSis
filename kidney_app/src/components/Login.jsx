@@ -21,7 +21,7 @@ export default function Login({ onLogin }) {
   return (
     <main className="auth-screen">
       <section className="panel auth-panel">
-        <p className="eyebrow">Bean Sis</p>
+        <p className="eyebrow auth-brand">Bean Sis</p>
         <h1>{register ? "Create your account" : "Welcome back"}</h1>
         <p className="muted">Sign in to continue to your kidney health support space.</p>
         <div className="auth-switch" role="group" aria-label="Account action">
