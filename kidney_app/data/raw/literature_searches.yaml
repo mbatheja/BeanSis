@@ -1,0 +1,15 @@
+# Reviewed high-level PubMed searches. PubMed resolves MeSH headings and entry terms;
+# keep the text-word alternatives for newly published, not-yet-MeSH-indexed records.
+reldate_days: 730
+retmax_per_topic: 30
+topics:
+  - name: ckd
+    query: '("Kidney Diseases"[Mesh] OR "chronic kidney disease"[tiab] OR CKD[tiab] OR "kidney insufficiency"[tiab])'
+  - name: dialysis
+    query: '("Renal Dialysis"[Mesh] OR dialysis[tiab] OR hemodialysis[tiab] OR haemodialysis[tiab] OR "peritoneal dialysis"[tiab])'
+  - name: transplant
+    query: '("Kidney Transplantation"[Mesh] OR "kidney transplant"[tiab] OR "renal transplant"[tiab])'
+  - name: bone_health
+    query: '(("Renal Osteodystrophy"[Mesh] OR "bone disease"[tiab] OR osteoporosis[tiab] OR "bone mineral"[tiab]) AND ("Kidney Diseases"[Mesh] OR CKD[tiab] OR dialysis[tiab]))'
+  - name: womens_kidney_health
+    query: '(("Pregnancy"[Mesh] OR "pregnancy"[tiab] OR menopause[tiab] OR "reproductive health"[tiab] OR contraception[tiab]) AND ("Kidney Diseases"[Mesh] OR CKD[tiab] OR "kidney transplant"[tiab]))'

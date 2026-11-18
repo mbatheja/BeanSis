@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: Bean Sis
+    orgId: 1
+    folder: Bean Sis
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

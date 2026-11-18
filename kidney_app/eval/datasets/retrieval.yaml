@@ -1,11 +1,56 @@
-# Retrieval set for search_documents. Fill relevant_doc_ids with doc_ids from YOUR manifest.
-# A hit = any chunk from a relevant doc in the top k.
-- query: preeclampsia risk in chronic kidney disease
+# Provisional retrieval labels: manually selected from corpus titles/topics; clinician review
+# should expand/correct relevance before treating scores as a quality gate.
+- query: Does CKD increase the risk of preeclampsia or other pregnancy complications?
   collection: research
-  relevant_doc_ids: [REPLACE_ME]
-- query: anemia fatigue CKD women
+  relevant_doc_ids: [PMID26487769, PMID38488268, PMID32443079, PMID38569186]
+- query: What pregnancy outcomes should someone with CKD discuss with a nephrologist?
   collection: research
-  relevant_doc_ids: [REPLACE_ME]
-- query: help paying for dialysis costs
+  relevant_doc_ids: [PMID26487769, PMID38488268, PMID34716386, PMID27471410]
+- query: Is pregnancy safe when you have reduced kidney function?
+  collection: research
+  relevant_doc_ids: [PMID27471410, PMID37258009, PMID23978545, PMID34716386]
+- query: What nutrition concerns matter during pregnancy with chronic kidney disease?
+  collection: research
+  relevant_doc_ids: [PMID31925336, PMID27471410]
+- query: Does moderate or severe CKD increase bone loss and osteoporosis risk?
+  collection: research
+  relevant_doc_ids: [PMID41957696, PMID32961953, PMID40034486, PMID29038837]
+- query: How are mineral and bone disorders managed in chronic kidney disease?
+  collection: research
+  relevant_doc_ids: [PMID33190187, PMID35718689, PMID38817914, PMID42825520]
+- query: How can menopause affect kidney health and symptoms?
+  collection: research
+  relevant_doc_ids: [PMID39609235, PMID25628057, PMID32852461, PMID21900940]
+- query: What contraception issues should women consider after kidney transplantation?
+  collection: research
+  relevant_doc_ids: [PMID42498172, PMID28711071, PMID34841395, PMID42133351]
+- query: What barriers do women face when accessing kidney transplantation?
+  collection: research
+  relevant_doc_ids: [PMID38481508, PMID28532558, PDF6da3ca9c0de428e8]
+- query: What fatigue assessment tools are used for people receiving hemodialysis?
+  collection: research
+  relevant_doc_ids: [PMID43036782]
+- query: Can Medi-Cal help pay for rides to dialysis appointments?
   collection: resource
-  relevant_doc_ids: [REPLACE_ME]
+  relevant_doc_ids: [medi-cal-transport]
+- query: Where can women with kidney disease get free peer support?
+  collection: resource
+  relevant_doc_ids: [baakp-groups, rsn-hopeline, mayo-connect-ckd]
+- query: What is chronic kidney disease and what symptoms might it cause?
+  collection: resource
+  relevant_doc_ids: [nkf-ckd, mayoclinic-ckd, niddk-ckd, cdc-kidney-disease]
+- query: Can low-dose aspirin help prevent preeclampsia during pregnancy?
+  collection: research
+  relevant_doc_ids: [uspstf-aspirin-preeclampsia, PMID38569186, PMID32443079]
+- query: After a hypertensive pregnancy, what are the later kidney and blood pressure risks?
+  collection: research
+  relevant_doc_ids: [PMID42695459, PMID42287092, PMID38569186]
+- query: What women's health issues are important after a kidney transplant?
+  collection: research
+  relevant_doc_ids: [PMID42133351, PMID34841395, PDFd093dbf92fb27975]
+- query: Can pregnancy change kidney disease progression in people with polycystic kidney disease?
+  collection: research
+  relevant_doc_ids: [PMID42149684, PMID34716386, PMID26487769]
+- query: What is known about kidney function and bone density in CKD?
+  collection: research
+  relevant_doc_ids: [PMID40034486, PMID41957696, PMID29038837, PMID19563381]

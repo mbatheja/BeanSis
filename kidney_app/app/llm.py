@@ -9,11 +9,17 @@ LLM_PROVIDER=anthropic. Call sites never see the difference. Nothing else should
 import json
 import logging
 import re
+import time
 from types import SimpleNamespace as NS
 
 from . import config
+from prometheus_client import Counter, Histogram
 
 log = logging.getLogger(__name__)
+LLM_REQUESTS = Counter("beansis_llm_requests_total", "LLM provider requests", ("provider", "model", "outcome"))
+LLM_DURATION = Histogram("beansis_llm_request_duration_seconds", "LLM provider request duration", ("provider", "model"),
+                         buckets=(.25, .5, 1, 2, 5, 10, 20, 40, 60))
+LLM_TOKENS = Counter("beansis_llm_tokens_total", "LLM tokens reported by provider", ("provider", "model", "direction"))
 
 _THINK = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 _TEMPERATURE = 0.2   # extraction and JSON-only tasks need low temperature
@@ -136,15 +142,28 @@ class _Messages:
             full = ([{"role": "system", "content": system_text}] if system_text else []) + msgs
             return self._c.chat.completions.create(messages=full, **kwargs)
 
+        started = time.perf_counter()
         try:
             resp = call(sys_text)
         except Exception as e:
             if not (no_tools and "tool_choice" in str(e)):
+                LLM_REQUESTS.labels("nebius", model, "error").inc()
+                LLM_DURATION.labels("nebius", model).observe(time.perf_counter() - started)
                 raise
             # Server rejects tool_choice "none": keep tools defined (history holds tool messages) and say so.
             kwargs.pop("tool_choice")
-            resp = call((sys_text + "\n\n" if sys_text else "") + "Answer now without calling tools.")
-        return _convert_response(resp)
+            try:
+                resp = call((sys_text + "\n\n" if sys_text else "") + "Answer now without calling tools.")
+            except Exception:
+                LLM_REQUESTS.labels("nebius", model, "error").inc()
+                LLM_DURATION.labels("nebius", model).observe(time.perf_counter() - started)
+                raise
+        result = _convert_response(resp)
+        LLM_REQUESTS.labels("nebius", model, "success").inc()
+        LLM_DURATION.labels("nebius", model).observe(time.perf_counter() - started)
+        LLM_TOKENS.labels("nebius", model, "input").inc(result.usage.input_tokens or 0)
+        LLM_TOKENS.labels("nebius", model, "output").inc(result.usage.output_tokens or 0)
+        return result
 
 
 class NebiusClient:

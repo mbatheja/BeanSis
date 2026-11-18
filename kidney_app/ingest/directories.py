@@ -15,27 +15,60 @@ import csv
 import hashlib
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 KEYWORDS = re.compile(r"nephrolog|obstet|gynec|ob/gyn|obgyn|maternal.?fetal|perinatolog", re.IGNORECASE)
+EXTRACTOR_VERSION = "directory-sections-v2"
+OTHER_SPECIALTY_HEADER = re.compile(
+    r"\b(allergy(?:/immunolog\w*)?|cardiolog\w*|dermatolog\w*|endocrinolog\w*|"
+    r"family (?:medicine|practice)|general practice|internal medicine|primary care|"
+    r"emergency medicine|gastroenterolog\w*|hematolog\w*|"
+    r"infectious disease|neurolog\w*|oncolog\w*|ophthalmolog\w*|orthop\w*|otolaryngolog\w*|"
+    r"pediatr\w*|psychiatr\w*|pulmonolog\w*|rheumatolog\w*|urolog\w*|"
+    r"surgery|neurosurgery|vascular surgery|pain medicine)\b", re.I)
+HEADERISH = re.compile(r"^[A-Z][A-Za-z &/(),.'-]{1,64}$")
 
 EXTRACT_PROMPT = """Extract every individual clinician on this insurance directory page whose specialty is
 nephrology, obstetrics/gynecology, or maternal-fetal medicine. Ignore other specialties and facilities.
 Return ONLY a JSON array; each item:
 {"first_name": str, "last_name": str, "specialty": "nephrology"|"obgyn"|"maternal_fetal_medicine",
  "npi": str|null, "address": str|null, "city": str|null, "state": str|null, "zip": str|null,
- "phone": str|null, "accepting_new": true|false|null}
-Return [] if none. Page text:
+ "phone": str|null, "accepting_new": true|false|null, "page": integer|null}
+The input can include multiple consecutive pages from the same specialty section. Continue records
+across page breaks until the next specialty heading; do not treat a page boundary as a section boundary.
+Use the page marker nearest each clinician for page. Return [] if none. Page text:
 """
 
 
 def candidate_pages(pdf_path):
+    """Yield target-specialty sections across page breaks until another specialty heading appears."""
     import pdfplumber
+    sections, current, current_page, active = [], [], None, False
     with pdfplumber.open(pdf_path) as pdf:
         for i, page in enumerate(pdf.pages):
             text = page.extract_text() or ""
-            if KEYWORDS.search(text):
-                yield i, text
+            for line in (x.strip() for x in text.splitlines() if x.strip()):
+                is_header = bool(HEADERISH.match(line))
+                is_target = is_header and bool(KEYWORDS.search(line))
+                is_other = is_header and bool(OTHER_SPECIALTY_HEADER.search(line))
+                if active and is_other and not is_target:
+                    if current:
+                        start_page = int(re.search(r"PAGE (\d+)", current[0]).group(1)) - 1
+                        sections.append((start_page, "\n".join(current)))
+                    current, current_page, active = [], None, False
+                if is_target:
+                    active = True
+                if active:
+                    if current_page != i:
+                        current.append(f"--- PAGE {i + 1} ---")
+                        current_page = i
+                    current.append(line)
+    if current:
+        sections.append((int(re.search(r"PAGE (\d+)", current[0]).group(1)) - 1, "\n".join(current)))
+    # A PDF may contain several target sections separated by another specialty heading.
+    for i, text in sections:
+        yield i, text
 
 
 def parse_json_array(raw):
@@ -50,24 +83,54 @@ def parse_json_array(raw):
 
 
 def extract(pdf_path, llm, model, cache_dir):
-    """LLM extraction per page, cached on disk by page-text hash so reruns are free."""
+    """Extract complete target sections across page breaks; cache each bounded page window."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     for i, text in candidate_pages(pdf_path):
-        h = hashlib.sha256(text.encode()).hexdigest()[:16]
-        cf = cache_dir / f"{h}.json"
-        if cf.exists():
-            items = json.loads(cf.read_text())
-        else:
-            resp = llm.messages.create(model=model, max_tokens=4000,
-                                       messages=[{"role": "user", "content": EXTRACT_PROMPT + text[:12000]}])
-            items = parse_json_array("".join(b.text for b in resp.content if b.type == "text"))
-            cf.write_text(json.dumps(items))
-        for it in items:
-            it["page"] = i + 1
-        rows.extend(items)
-        print(f"page {i + 1}: {len(items)} clinicians")
-    return rows
+        blocks = re.split(r"(?=--- PAGE \d+ ---)", text)
+        windows, window, length = [], [], 0
+        for block in blocks:
+            if not block.strip():
+                continue
+            if window and length + len(block) > 9000:
+                windows.append("\n".join(window))
+                # A little overlap keeps records split at a page/window boundary recoverable.
+                last_block = window[-1] if window else ""
+                page_match = re.search(r"--- PAGE (\d+) ---", last_block)
+                overlap = (f"--- PAGE {page_match.group(1)} ---\n" + last_block[-1200:]) if page_match else ""
+                window, length = ([overlap] if overlap else []), len(overlap)
+            window.append(block)
+            length += len(block)
+        if window:
+            windows.append("\n".join(window))
+        for window_text in windows:
+            h = hashlib.sha256((EXTRACTOR_VERSION + model + window_text).encode()).hexdigest()[:20]
+            cf = cache_dir / f"{h}.json"
+            if cf.exists():
+                items = json.loads(cf.read_text(encoding="utf-8"))
+            else:
+                resp = llm.messages.create(model=model, max_tokens=4000,
+                                           messages=[{"role": "user", "content": EXTRACT_PROMPT + window_text}])
+                items = parse_json_array("".join(b.text for b in resp.content if b.type == "text"))
+                cf.write_text(json.dumps(items), encoding="utf-8")
+            pages = [int(x) for x in re.findall(r"--- PAGE (\d+) ---", window_text)]
+            for it in items:
+                candidate_page = int(it.get("page") or (pages[0] if pages else i + 1))
+                it["page"] = candidate_page if candidate_page in pages else (pages[0] if pages else i + 1)
+                it["page_start"] = pages[0] if pages else i + 1
+                it["page_end"] = pages[-1] if pages else i + 1
+            rows.extend(items)
+            print(f"pages {pages[0] if pages else i + 1}-{pages[-1] if pages else i + 1}: {len(items)} clinicians")
+    # Adjacent-window overlap can repeat a record. Keep the first record with the most specific location.
+    unique = {}
+    for row in rows:
+        key = tuple(str(row.get(k) or "").strip().lower() for k in
+                    ("first_name", "last_name", "specialty", "zip", "address"))
+        if not any(key):
+            key = (*key, str(len(unique)))
+        if key not in unique or (not unique[key].get("page") and row.get("page")):
+            unique[key] = row
+    return list(unique.values())
 
 
 MATCH_SQL = """
@@ -88,7 +151,7 @@ SELECT * FROM by_npi UNION ALL SELECT * FROM by_name
 """
 
 
-def load(rows, plan_id, source_file, directory_date):
+def load(rows, plan_id, source_file, directory_date, source_sha256=None, extractor_model=None):
     import duckdb
     import pandas as pd
     from app import config
@@ -99,6 +162,9 @@ def load(rows, plan_id, source_file, directory_date):
     df["npi"] = df["npi"].fillna("").astype(str)
     df["zip"] = df["zip"].fillna("").astype(str)
     df["row_id"] = range(len(df))
+    df["page"] = pd.to_numeric(df.get("page", pd.Series([None] * len(df))), errors="coerce")
+    df["page_start"] = pd.to_numeric(df.get("page_start", df["page"]), errors="coerce")
+    df["page_end"] = pd.to_numeric(df.get("page_end", df["page"]), errors="coerce")
     con = duckdb.connect(str(config.REFERENCE_DB))
     con.register("dir", df)
     matches = con.sql(MATCH_SQL).df()
@@ -123,6 +189,26 @@ def load(rows, plan_id, source_file, directory_date):
             "zip VARCHAR, phone VARCHAR, page VARCHAR)")
     con.execute("DELETE FROM directory_unmatched WHERE plan_id = ? AND source_file = ?", [plan_id, source_file])
     con.sql("INSERT INTO directory_unmatched SELECT * FROM un")
+    # Preserve the original directory record and exact source location for audit and reprocessing.
+    con.sql("CREATE TABLE IF NOT EXISTS provider_directory_provenance ("
+            "plan_id VARCHAR, npi VARCHAR, source_file VARCHAR, source_sha256 VARCHAR, directory_date VARCHAR, "
+            "page INTEGER, page_start INTEGER, page_end INTEGER, source_row INTEGER, match_method VARCHAR, "
+            "extractor_model VARCHAR, extracted_at VARCHAR, raw_record_json VARCHAR)")
+    con.execute("DELETE FROM provider_directory_provenance WHERE plan_id = ? AND source_file = ?", [plan_id, source_file])
+    provenance = matched.copy()
+    provenance["source_sha256"] = source_sha256
+    provenance["directory_date"] = directory_date
+    provenance["extractor_model"] = extractor_model
+    provenance["extracted_at"] = datetime.now(timezone.utc).isoformat()
+    provenance["raw_record_json"] = provenance.apply(lambda r: json.dumps({k: (None if pd.isna(v) else str(v))
+        for k, v in r.items() if k not in {"raw_record_json"}}, default=str), axis=1)
+    provenance = provenance.rename(columns={"method": "match_method"})
+    con.register("provenance", provenance)
+    con.execute("INSERT INTO provider_directory_provenance BY NAME "
+                "SELECT ? AS plan_id, npi, ? AS source_file, source_sha256, directory_date, "
+                "CAST(page AS INTEGER) AS page, CAST(page_start AS INTEGER) AS page_start, "
+                "CAST(page_end AS INTEGER) AS page_end, row_id AS source_row, match_method, extractor_model, "
+                "extracted_at, raw_record_json FROM provenance", [plan_id, source_file])
     con.close()
     print(f"{len(df)} extracted, {len(net)} matched to NPPES, {len(un)} unmatched (see directory_unmatched)")
 
@@ -192,4 +278,5 @@ if __name__ == "__main__":
     for j in jobs:
         print(f"\n== {Path(j['file']).name} -> {j['plan_id']} ({j['directory_date']})")
         rows = extract(j["file"], client, config.MODEL_FAST, config.DATA_DIR / "directory_cache")
-        load(rows, j["plan_id"].strip(), Path(j["file"]).name, j["directory_date"])
+        digest = hashlib.sha256(Path(j["file"]).read_bytes()).hexdigest()
+        load(rows, j["plan_id"].strip(), Path(j["file"]).name, j["directory_date"], digest, config.MODEL_FAST)

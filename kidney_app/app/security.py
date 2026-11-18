@@ -14,8 +14,8 @@ import time
 from collections import defaultdict, deque
 
 SECRET = os.getenv("APP_SHARED_SECRET", "")
-OPEN_PATHS = {"/healthz"}
-COSTLY_PREFIXES = ("/chat/", "/you/meals", "/you/visit-prep")
+OPEN_PATHS = {"/healthz", "/metrics"}  # /metrics is denied by Caddy and only scraped inside Compose.
+COSTLY_PREFIXES = ("/chat/", "/you/meals", "/you/visit-prep", "/a2a/agents/")
 LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "12"))
 LIMIT_PER_DAY = int(os.getenv("RATE_LIMIT_PER_DAY", "300"))
 

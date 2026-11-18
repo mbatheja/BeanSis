@@ -27,7 +27,7 @@ const STARTERS = {
   ],
 };
 
-export default function Chat({ tab, intro, onNavigate }) {
+export default function Chat({ tab, label, intro, onNavigate }) {
   const [threads, setThreads] = useState([]);
   const [threadId, setThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -98,11 +98,17 @@ export default function Chat({ tab, intro, onNavigate }) {
 
   return (
     <div className={`chat ${historyOpen ? "history-open" : ""}`}>
+      <header className="chat-heading">
+        <h1>{label}</h1>
+        {messages.length === 0 && <p className="intro">{intro}</p>}
+      </header>
       <div className="chat-toolbar">
-        <button className="btn quiet" onClick={() => setHistoryOpen((open) => !open)} aria-expanded={historyOpen} aria-controls={`history-${tab}`}>
-          {historyOpen ? "Hide history" : "Show history"}
+        <button className="btn quiet icon-action" onClick={() => setHistoryOpen((open) => !open)} aria-label={historyOpen ? "Hide history" : "Show history"} title={historyOpen ? "Hide history" : "Show history"} aria-expanded={historyOpen} aria-controls={`history-${tab}`}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.2 2"/></svg>
         </button>
-        <button className="btn primary" onClick={newChat}>New question</button>
+        <button className="btn primary icon-action" onClick={newChat} aria-label="New question" title="New question">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       </div>
 
       <aside id={`history-${tab}`} className="threads" aria-label="Message history" hidden={!historyOpen}>
@@ -136,7 +142,6 @@ export default function Chat({ tab, intro, onNavigate }) {
           <>
             {messages.length === 0 && (
               <div className="empty">
-                <p className="intro">{intro}</p>
                 <p className="muted">Try one of these:</p>
                 <div className="starters">
                   {(STARTERS[tab] || []).map((s) => (

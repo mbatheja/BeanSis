@@ -26,6 +26,12 @@ Women with kidney disease face questions that general health apps and search eng
 Four specialist chat agents (tabs) share one memory layer, one safety gate, one citation checker, and a shared
 research sub-agent. A "You" area holds the user's own data: profile, pinboard, medications, nutrition, and visit prep.
 
+An optional `POST /chat/auto` entry point applies a fixed query router and sends clear requests to the existing
+specialists: symptoms/kidney health to research, medicines to medication analysis, practical support to resources,
+and provider searches to doctors. The safety gate still runs first. Mixed or unclear requests get one concise
+clarifying question. Medication analysis runs before its optional, one-time Research handoff; delegation does not
+loop. Existing tab-specific chat URLs remain available and preserve explicit user intent.
+
 ### Architecture
 
 ```mermaid
@@ -85,8 +91,51 @@ Every source found in a turn is saved, so any tab can recall it later.
 |---|---|---|
 | symptoms | Symptoms and self-management from research | `search_documents`, `deep_research` (live PubMed sub-agent), `recall_memory`, `my_nutrition` |
 | medications | Label, FAERS, and patient-experience view of a drug | `normalize_drug` (RxNorm), `drug_label` + `faers_summary` (openFDA), `drug_signal_profile`, `patient_reviews`, `check_my_interactions`, `search_documents`, `deep_research`, `recall_memory` |
-| resources | Coverage, plans, clinical trials, and rides to care (California) | `search_documents`, `search_trials` (ClinicalTrials.gov), `list_plans`, `ride_help`, `recall_memory` |
+| resources | Coverage, plans, clinical trials, and rides to care (California) | `search_resources` (prefers ZIP/state-tagged entries), `search_documents`, `search_trials` (ClinicalTrials.gov), `list_plans`, `ride_help`, `recall_memory` |
 | doctors | In-network providers near the user | `list_plans`, `find_providers` (NPPES + insurer directories), `recall_memory` |
+
+### Agent and tool boundaries
+
+The orchestrator has an allowlisted A2A registry for Symptoms, Medication, Resources, Providers, Visit Prep, and
+Research. Each card describes its skills and JSON-RPC endpoint. The registry is available at `/a2a/registry`;
+cards use `/.well-known/agent-card.json` under each agent path. In Compose, chat turns discover the cards and call
+the matching specialist through A2A; protocol or peer failures fall back to the existing in-process specialist.
+Visit Prep also has an A2A endpoint and keeps its facts-building and validation workflow. The Medication specialist
+can hand a literature question to the separate read-only Research peer; Research receives only that question and
+returns synthesis plus source records. Patient profiles and app state stay with the host specialist. The shared
+MCP server exposes scoped research, medication evidence, support-resource, and provider-directory tools; it does
+not expose a patient's medication list, chat history, or profile. The MCP service is private-network-only.
+
+Compose enables A2A dispatch for chat. For local API runs, set `A2A_SPECIALISTS_ENABLED=1` and point
+`A2A_API_BASE_URL` at the API's reachable base URL; the Agent Cards and registry are mounted either way.
+
+The app uses Agent2Agent and MCP as interoperability contracts, not a second agent runtime. Agent Stack (BeeAI)
+can discover and call these A2A-compatible services, while adopting its runtime, model routing, vector storage, and deployment
+control plane would duplicate this app's current FastAPI/DuckDB stack before there is a need to operate a fleet.
+
+### Ingestion provenance and versioning
+
+Document chunks now retain source URI/path, SHA-256 source-content hash, ingestion code version, ingestion time,
+chunk index, and page when known. Loading a manifest replaces only the incoming document IDs inside one DuckDB
+transaction; reruns are safe, unrelated documents remain, and an empty input is a no-op. Insurer directory parses
+retain the source PDF hash, directory date, page span, extracted record, match method, and extractor model in
+`provider_directory_provenance`; the returned provider source includes its insurer directory date and PDF/page
+provenance when available. The NPPES provider ingestion records its input file hash, ingest version, timestamp,
+and loaded row count in `provider_ingest_provenance`.
+
+`dvc.yaml` defines a reproducible research/resource chunk snapshot plus its PubMed title-verification report.
+Install the optional tooling with `pip install -r requirements-data.txt`, initialize DVC once with `dvc init`, then
+run `dvc repro`. Configure a team DVC remote before `dvc push` to share the snapshots. DuckDB remains the runtime
+search index and holds the same source hashes; DVC versions the content artifact without capturing user app state.
+
+### Retrieval index choice
+
+The reference DuckDB supports BM25 and an optional persistent 4,096-dimensional `chunk_embeddings` table. Enable
+`ENABLE_SEMANTIC_INDEX=1` to update vectors idempotently during document ingestion. The query path can fuse BM25 and
+cosine-ranked candidates using reciprocal-rank fusion while keeping citations on the original document chunks.
+Before enabling it in production, compare the modes with `python -m eval.retrieval_benchmark --db <writable-eval-copy>`;
+see `eval/datasets/retrieval.yaml` and `requirements-eval.txt`. Current evaluation labels are provisional and should
+be reviewed by a clinician before treating scores as a quality gate.
 
 ## Features
 
@@ -199,7 +248,7 @@ show in the UI. `DELETE /threads/{id}?user_id=` deletes one chat; `DELETE /users
 |---|---|---|
 | Curated documents (`manifest.csv`, see `manifest_template.csv`) | `ingest.documents` | Research, coverage, and resource articles searched by `search_documents` |
 | `data/raw/resources_manifest.csv` | `ingest.documents` | Curated California and federal coverage/support pages plus patient education from sources including Mayo Clinic, NKF, NIDDK, CDC, Kidney Care UK, DaVita, AHA, Fresenius Kidney Care, PubMed Central, and Cleveland Clinic. Topics include CKD, AKI, kidney failure, glomerular disease, women's kidney health, menopause, pregnancy, and medicines. |
-| `data/raw/literature.csv`: the team's core papers (KDIGO 2025 consensus, AHA 2026 statement, pregnancy-outcome reviews, disparities and cardiometabolic papers) | `ingest.documents --literature` (`ingest/literature.py`) | PubMed abstracts only. Each entry's real PubMed title must match its expected title, so a typo'd PMID can't load the wrong paper; skipped entries are listed in `data/literature_report.csv` |
+| `data/raw/literature.csv` plus reviewed searches in `data/raw/literature_searches.yaml` | `ingest.documents --literature --discover-topics` | Curated PubMed abstracts plus up to 30 recent search results per topic (730-day window). Titles are verified for curated IDs. MeSH headings, author keywords, names, topics, and identifiers are stored in DuckDB and generated catalogs (`literature_enriched.csv`, `literature_discovered.csv`, `literature_pdf_catalog.csv`); the curated seed CSV stays unchanged. |
 | [Census ZCTA-to-county relationship file](https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html) | `ingest.ca_transport` | California ZIP -> county for the ride finder |
 | `data/raw/ca_medi_cal_plans.csv` from the [DHCS plan directory](https://www.dhcs.ca.gov/individuals/medi-cal-managed-care-health-plan-directory/) | read directly by `app/tools/transport.py` | Medi-Cal plans per county with verified phone numbers (see `ca_medi_cal_plans_README.md`) |
 | [ClinicalTrials.gov API v2](https://clinicaltrials.gov/api/v2/studies) | `ingest.clinicaltrials` | Recruiting trials for `search_trials` |
@@ -342,8 +391,11 @@ Run from the project root with the API stopped (DuckDB allows one writer). Load 
 because directory matching uses NPPES.
 
 ```bash
-# all documents in ONE command: each run rebuilds the document index
-python -m ingest.documents data/raw/manifest.csv data/raw/resources_manifest.csv --literature data/raw/literature.csv
+# all documents in ONE command: indexes local research PDFs, curated sources, seed papers,
+# and recent PubMed discoveries from reviewed topic searches
+python -m ingest.documents data/raw/resources_manifest.csv data/raw/guidelines_manifest.csv \
+    --literature data/raw/literature.csv --discover-topics data/raw/literature_searches.yaml \
+    --pdf-dir data/raw/pdfs
 python -m ingest.clinicaltrials
 # NPPES: 'Monthly NPPES Downloadable File Version 2 (V.2)' from download.cms.gov/nppes/NPI_Files.html; unzip and
 # keep the big npidata_pfile_*.csv (don't open it in Excel). Check its header first (free, reads one line):
@@ -366,8 +418,11 @@ unmatched clinicians from every PDF build up in the `directory_unmatched` table 
 The Census loaders accept both the older tab-separated files and the 2020+ / 2026 pipe-separated ones, and the
 NPPES loader matches V.1 or V.2 column names.
 
-For PDF guides in the resources manifest (Medicare 10128, the All Plan Letters), download them and add a `path`
-to index the full text. `--pmids data/raw/pmids.txt` still works for a plain PMID list without title checks.
+For research papers, place PDFs under `data/raw/pdfs/`; the loader recursively extracts page text, hashes each file,
+deduplicates identical PDFs, and enriches a DOI/title match with PubMed authors, MeSH headings, keywords, and abstract.
+Non-matching PDFs are still indexed as full text with a file-hash/path identity and topic tags inferred from their text.
+The generated literature catalogs record article metadata and source hashes. Scanned PDFs with no text layer are
+reported and must be OCR'd before ingestion. `--pmids data/raw/pmids.txt` still works for a plain PMID list.
 
 ### Run
 
@@ -465,9 +520,9 @@ human labeling (blank labels are skipped).
 ## Guidelines and full texts (`data/raw/guidelines_manifest.csv`)
 KDIGO 2024 CKD guideline and ACOG Practice Bulletin 222 (full text), USPSTF aspirin and blood-pressure
 screening recommendations, CDC HEAR HER, the National Maternal Mental Health Hotline, and the AAFP pregnancy
-hub. Put the PDFs in `data/raw/pdfs/` as `KDIGO-2024-CKD-Guideline.pdf` and `acog_pb_222.pdf` (rename the ACOG
-file: its original name contains a comma). Load everything together:
-`python -m ingest.documents data/raw/manifest.csv data/raw/resources_manifest.csv data/raw/guidelines_manifest.csv --literature data/raw/literature.csv`
+hub. The ACOG PDF already in `data/raw/pdfs/` is referenced by its actual filename in the manifest. Place the
+KDIGO PDF at `data/raw/pdfs/KDIGO-2024-CKD-Guideline.pdf` before ingesting this manifest. Load everything together:
+`python -m ingest.documents data/raw/resources_manifest.csv data/raw/guidelines_manifest.csv --literature data/raw/literature.csv`
 
 ## Provider test set (from your own NPPES load, verified against the official NPI Registry)
 `python -m eval.sample_providers sample` (50 LA nephrologists + 50 CA OB/GYNs), then

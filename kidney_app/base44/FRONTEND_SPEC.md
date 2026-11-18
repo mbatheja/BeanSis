@@ -81,8 +81,9 @@ includes its directory date; keep the reply's notice about confirming with the i
    - NO calories, weight, or scores anywhere.
 4. **Prepare for a visit** button: pick PCP / OB-GYN / Nephrology / Maternal-fetal medicine
    (`GET /you/visit-types`), optional "What do you want to bring up?" text, then
-   `POST /you/visit-prep` body `{visit_type, concerns, save}`. Render `markdown` as a printable page with
-   Print and "Save to board" (re-call with `save: true`).
+   `POST /you/visit-prep` body `{visit_type, concerns}` to generate a draft. Let the user review and edit
+   the Markdown before saving. Only after they choose "Save reviewed sheet to my board," call
+   `POST /you/visit-prep/save` with `{sheet, markdown}`. Print remains available before or after saving.
 
 ## Settings / Profile
 Form for ZIP, state, insurance plan, CKD stage, life stage (pregnant / postpartum / planning / not

@@ -1,0 +1,16 @@
+stages:
+  reference_library:
+    cmd: python -m ingest.documents data/raw/resources_manifest.csv data/raw/guidelines_manifest.csv --literature data/raw/literature.csv --discover-topics data/raw/literature_searches.yaml --pdf-dir data/raw/pdfs --snapshot artifacts/reference/chunks.parquet --literature-report artifacts/reference/literature_report.csv
+    deps:
+      - ingest/documents.py
+      - ingest/literature.py
+      - app/tools/external.py
+      - app/refdb.py
+      - data/raw/resources_manifest.csv
+      - data/raw/guidelines_manifest.csv
+      - data/raw/pdfs/
+      - data/raw/literature.csv
+      - data/raw/literature_searches.yaml
+    outs:
+      - artifacts/reference/chunks.parquet
+      - artifacts/reference/literature_report.csv

@@ -45,6 +45,7 @@ const ROUTES: Route[] = [
   { method: "DELETE", pattern: new RegExp(`^/you/meals/${ID}$`) },
   { method: "GET", pattern: /^\/you\/\{me\}\/nutrition$/ },
   { method: "POST", pattern: /^\/you\/visit-prep$/ },
+  { method: "POST", pattern: /^\/you\/visit-prep\/save$/ },
   { method: "POST", pattern: /^\/resources\/ride$/ },
 ];
 

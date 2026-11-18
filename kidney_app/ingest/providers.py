@@ -14,6 +14,8 @@ Usage:
         --plans data/raw/plans.csv [--states CA]
 """
 import argparse
+import hashlib
+from datetime import datetime, timezone
 
 # NUCC taxonomy codes -> app specialty labels
 TAXONOMY = {
@@ -85,6 +87,19 @@ def load_nppes(con, path, states=None):
         FROM raw
         WHERE entity_type = '1' AND taxonomy IS NOT NULL {state_filter}
     """)
+    # Keep a version record for the large source file without adding repeated provenance to every NPI row.
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    con.sql("CREATE TABLE IF NOT EXISTS provider_ingest_provenance ("
+            "dataset VARCHAR, source_file VARCHAR, source_sha256 VARCHAR, ingest_version VARCHAR, "
+            "ingested_at VARCHAR, row_count BIGINT)")
+    con.execute("DELETE FROM provider_ingest_provenance WHERE dataset = ?", ["nppes"])
+    con.execute("INSERT INTO provider_ingest_provenance SELECT ?, ?, ?, ?, ?, "
+                "(SELECT count(*) FROM providers)",
+                ["nppes", str(path).replace("\\", "/").split("/")[-1], digest.hexdigest(),
+                 "providers-v2", datetime.now(timezone.utc).isoformat()])
     print(con.sql("SELECT specialty, count(*) FROM providers GROUP BY 1").fetchall())
 
 

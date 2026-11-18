@@ -34,11 +34,13 @@ numbers are estimates.""",
     },
     "medications": {
         "title": "Medication side effects",
-        "tools": ["normalize_drug", "drug_signal_profile", "drug_label", "faers_summary", "patient_reviews",
+        "tools": ["medication_overview", "normalize_drug", "drug_signal_profile", "drug_label", "faers_summary", "patient_reviews",
                   "check_my_interactions",
                   "search_documents", "deep_research", "recall_memory"],
         "prompt": """Tab: medication adverse effects.
-Workflow: normalize_drug first, then drug_label (pregnancy, lactation, renal sections) and faers_summary
+For "what is X used for" or "why was X prescribed", use medication_overview first; it combines RxNorm
+resolution with relevant official FDA label sections in one tool call. For other medication lookups,
+normalize_drug first, then drug_label (pregnancy, lactation, renal sections) and faers_summary
 (women only by default). Present label information as the official source. Present FAERS as
 "what has been reported," always with the caveat that report counts are not rates and don't prove the drug
 caused the effect. Use search_documents/deep_research for studies on safety in pregnancy or CKD.
@@ -58,10 +60,11 @@ was found; say the check is limited and to confirm with her pharmacist. Never su
     },
     "resources": {
         "title": "Coverage & support resources",
-        "tools": ["search_documents", "search_trials", "list_plans", "ride_help", "recall_memory"],
+        "tools": ["search_resources", "search_documents", "search_trials", "list_plans", "ride_help", "recall_memory"],
         "prompt": """Tab: insurance coverage, financial and practical support, community programs, clinical trials.
-Use search_documents with collection='coverage' for plan benefit questions and collection='resource' for
-free/low-cost programs and support groups. Use search_trials for research studies; mention when a trial
+Start with search_resources for community programs and practical support; it prefers entries matching the
+user's ZIP/state when location metadata exists. Use search_documents with collection='coverage' for plan benefit
+questions and collection='resource' for free/low-cost programs and support groups. Use search_trials for research studies; mention when a trial
 excludes pregnancy or breastfeeding. Prefer free and low-cost options and say who is eligible.
 Each trial's excludes_pregnancy is approximate: true = excludes pregnancy/breastfeeding, false = recruits
 pregnant participants, null = not stated in the eligibility criteria (the full protocol may still exclude).

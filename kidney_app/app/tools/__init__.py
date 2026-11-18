@@ -20,6 +20,17 @@ TOOLS = {
             "limit": {"type": "integer", "default": 6}}, "required": ["query"]}},
         local.search_documents),
 
+    "search_resources": ({
+        "name": "search_resources",
+        "description": ("Search curated community, practical support, and coverage resources. Uses the user's "
+                        "saved ZIP/state to prefer geographically relevant entries; general entries are returned "
+                        "when the catalog has no ZIP-specific listing."),
+        "input_schema": {"type": "object", "properties": {
+            "query": {"type": "string"}, "zip": {"type": "string"},
+            "state": {"type": "string"}, "limit": {"type": "integer", "default": 8}},
+            "required": ["query"]}},
+        local.search_resources),
+
     "deep_research": ({
         "name": "deep_research",
         "description": ("Research sub-agent: searches live PubMed plus the curated library and returns a "
@@ -31,6 +42,12 @@ TOOLS = {
             "min_year": {"type": "integer"},
             "max_papers": {"type": "integer", "default": 6}}, "required": ["question"]}},
         local.deep_research),
+
+    "medication_overview": ({
+        "name": "medication_overview",
+        "description": "For questions asking what a medication is used for, resolve its generic ingredient and retrieve official FDA label indications plus pregnancy, lactation, renal-population, and warning context in one call.",
+        "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+        local.medication_overview),
 
     "normalize_drug": ({
         "name": "normalize_drug",
@@ -159,6 +176,10 @@ def schemas(names):
 def run(name, args, ctx):
     if name not in TOOLS:
         return {"results": {"error": f"unknown tool {name}"}, "sources": []}
+    if name == "deep_research" and ctx.get("tab") == "medications":
+        if ctx.get("research_delegations", 0) >= 1:
+            return {"results": {"error": "Medication workflow allows one research handoff per turn."}, "sources": []}
+        ctx["research_delegations"] = ctx.get("research_delegations", 0) + 1
     try:
         return TOOLS[name][1](args, ctx)
     except Exception as e:  # tools must never crash the turn; the model sees the error and adapts

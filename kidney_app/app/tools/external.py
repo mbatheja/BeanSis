@@ -30,10 +30,29 @@ def parse_pubmed_xml(xml_text):
         abstract = " ".join(
             ((a.get("Label") + ": ") if a.get("Label") else "") + "".join(a.itertext())
             for a in art.findall(".//Abstract/AbstractText"))
+        author_keywords = ["".join(k.itertext()).strip() for k in art.findall(".//KeywordList/Keyword")]
+        mesh_terms = ["".join(m.itertext()).strip()
+                      for m in art.findall(".//MeshHeadingList/MeshHeading/DescriptorName")]
+        authors = []
+        for author in art.findall(".//AuthorList/Author"):
+            collective = author.findtext("CollectiveName")
+            if collective:
+                name = collective.strip()
+            else:
+                fore = " ".join((author.findtext("ForeName") or author.findtext("Initials") or "").split())
+                last = " ".join((author.findtext("LastName") or "").split())
+                suffix = " ".join((author.findtext("Suffix") or "").split())
+                name = " ".join(part for part in (fore, last, suffix) if part)
+            if name:
+                authors.append(name)
+        doi = next((x.text.strip() for x in art.findall(".//PubmedData/ArticleIdList/ArticleId")
+                    if (x.get("IdType") or "").lower() == "doi" and x.text), None)
         year = art.findtext(".//JournalIssue/PubDate/Year") or art.findtext(".//ArticleDate/Year")
         pub_types = [p.text for p in art.findall(".//PublicationType") if p.text]
         out.append({"pmid": pmid, "title": title, "year": year, "journal": art.findtext(".//Journal/Title"),
-                    "pub_types": pub_types, "abstract": abstract[:1500]})
+                    "pub_types": pub_types, "abstract": abstract[:1500],
+                    "author_keywords": author_keywords, "mesh_terms": mesh_terms, "authors": authors,
+                    "doi": doi})
     return out
 
 
@@ -50,7 +69,10 @@ def pubmed_search(query, max_results=6, min_year=None):
     arts = parse_pubmed_xml(xml)
     return {"results": arts,
             "sources": [{"source_id": f"PMID:{a['pmid']}", "title": a["title"],
-                         "url": f"https://pubmed.ncbi.nlm.nih.gov/{a['pmid']}/"} for a in arts]}
+                         "url": f"https://pubmed.ncbi.nlm.nih.gov/{a['pmid']}/",
+                         "authors": "; ".join(a.get("authors", [])), "doi": a.get("doi"),
+                         "mesh_terms": "; ".join(a.get("mesh_terms", [])),
+                         "author_keywords": "; ".join(a.get("author_keywords", []))} for a in arts]}
 
 
 # ------------------------------------------------------------------ RxNorm

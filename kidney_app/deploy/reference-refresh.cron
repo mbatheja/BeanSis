@@ -1,0 +1,5 @@
+# Install the three entries with `crontab -e` after changing /home/ubuntu/kidney_app
+# if the repository lives elsewhere. Times use the VM's local timezone.
+10 3 * * 1 bash /home/ubuntu/kidney_app/deploy/refresh_reference_data.sh clinicaltrials >> /home/ubuntu/kidney_app/deploy/reference-refresh.log 2>&1
+0 4 * * * bash /home/ubuntu/kidney_app/deploy/refresh_reference_data.sh pubmed >> /home/ubuntu/kidney_app/deploy/reference-refresh.log 2>&1
+10 5 1 * * bash /home/ubuntu/kidney_app/deploy/refresh_reference_data.sh directories >> /home/ubuntu/kidney_app/deploy/reference-refresh.log 2>&1

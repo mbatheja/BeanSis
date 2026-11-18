@@ -14,7 +14,10 @@ Use through the documents loader so everything lands in one index:
     python -m ingest.documents data/raw/manifest.csv --literature data/raw/literature.csv
 """
 import csv
+import hashlib
 import re
+from datetime import datetime, timezone
+from pathlib import Path
 
 from app.cache import cached_get_json, cached_get_text
 from app.tools.external import EUTILS, _ncbi_params, parse_pubmed_xml
@@ -51,6 +54,80 @@ def fetch(pmids):
     return {a["pmid"]: a for a in parse_pubmed_xml(xml)}
 
 
+def _row_from_record(rec, topic=None):
+    """Convert one verified PubMed record into a searchable, provenance-rich abstract row."""
+    pmid = rec["pmid"]
+    authors = "; ".join(rec.get("authors", []))
+    author_keywords = "; ".join(rec.get("author_keywords", []))
+    mesh_terms = "; ".join(rec.get("mesh_terms", []))
+    metadata = "\n".join(x for x in (f"Topics: {topic}" if topic else "", f"Authors: {authors}" if authors else "",
+                                      f"Author keywords: {author_keywords}" if author_keywords else "",
+                                      f"MeSH terms: {mesh_terms}" if mesh_terms else "") if x)
+    text = f"{rec['title']}\n{metadata}\n{rec['abstract']}" if metadata else f"{rec['title']}\n{rec['abstract']}"
+    return {"chunk_id": f"PMID{pmid}#0", "doc_id": f"PMID{pmid}", "collection": "research",
+            "title": rec["title"], "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            "year": int(rec["year"]) if (rec["year"] or "").isdigit() else None,
+            "pub_type": ", ".join(rec["pub_types"][:2]), "tags": topic,
+            "text": text, "source_uri": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/", "source_file": None,
+            "source_hash": hashlib.sha256(text.encode()).hexdigest(), "ingest_version": "documents-v3",
+            "ingested_at": datetime.now(timezone.utc).isoformat(), "page_number": None, "chunk_index": 0,
+            "pmid": pmid, "doi": rec.get("doi"), "authors": authors or None,
+            "author_keywords": author_keywords or None, "mesh_terms": mesh_terms or None,
+            "abstract": rec["abstract"] or None, "full_text_status": "abstract_only", "source_type": "pubmed",
+            "topics": topic}
+
+
+def rows_from_discovery(path):
+    """Fetch recent PubMed candidates from reviewed topic queries in YAML."""
+    import yaml
+    config = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    topics = config.get("topics", [])
+    reldate = int(config.get("reldate_days", 730))
+    retmax = int(config.get("retmax_per_topic", 25))
+    topic_pmids = {}
+    for topic in topics:
+        name, query = topic["name"], topic["query"]
+        try:
+            result = cached_get_json(f"{EUTILS}/esearch.fcgi", _ncbi_params({
+                "db": "pubmed", "term": query, "retmax": retmax, "sort": "pub_date",
+                "datetype": "pdat", "reldate": reldate, "retmode": "json"}), ttl=6 * 3600
+            ).get("esearchresult", {})
+        except Exception as exc:
+            print(f"PubMed discovery failed for topic {name}: {exc}")
+            continue
+        for pmid in result.get("idlist", []):
+            topic_pmids.setdefault(pmid, set()).add(name)
+
+    try:
+        records = fetch(list(topic_pmids))
+    except Exception as exc:
+        print(f"PubMed metadata fetch failed; continuing with curated/PDF sources: {exc}")
+        records = {}
+    rows = []
+    catalog = []
+    for pmid, rec in records.items():
+        tags = "; ".join(sorted(topic_pmids[pmid]))
+        if not rec.get("abstract"):
+            continue
+        rows.append(_row_from_record(rec, tags))
+        catalog.append({"pmid": pmid, "doi": rec.get("doi") or "", "title": rec["title"],
+                        "year": rec.get("year") or "", "topic": tags,
+                        "pubmed_mesh_terms": "; ".join(rec.get("mesh_terms", [])),
+                        "pubmed_author_keywords": "; ".join(rec.get("author_keywords", [])),
+                        "pubmed_authors": "; ".join(rec.get("authors", [])),
+                        "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"})
+    target = Path(__file__).resolve().parents[1] / "data" / "literature_discovered.csv"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fields = ("pmid", "doi", "title", "year", "topic", "pubmed_mesh_terms",
+              "pubmed_author_keywords", "pubmed_authors", "url")
+    with target.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(catalog)
+    print(f"PubMed discovery: {len(rows)} recent articles across {len(topics)} topics")
+    return rows
+
+
 def rows_from_literature(path, report_path=None):
     entries = list(csv.DictReader(open(path, encoding="utf-8")))
     for e in entries:
@@ -59,7 +136,15 @@ def rows_from_literature(path, report_path=None):
     rows, report = [], []
     for e in entries:
         rec = records.get(e["pmid"]) if e["pmid"] else None
+        e.setdefault("pubmed_mesh_terms", "")
+        e.setdefault("pubmed_author_keywords", "")
+        e.setdefault("pubmed_authors", "")
         score = title_match(e["expected_title"], rec["title"]) if rec else 0.0
+        if rec and score >= MATCH_THRESHOLD:
+            # Keep PubMed's controlled vocabulary separate from author supplied keywords.
+            e["pubmed_mesh_terms"] = "; ".join(rec.get("mesh_terms", []))
+            e["pubmed_author_keywords"] = "; ".join(rec.get("author_keywords", []))
+            e["pubmed_authors"] = "; ".join(rec.get("authors", []))
         if not e["pmid"]:
             status = "not_found"
         elif not rec:
@@ -75,12 +160,21 @@ def rows_from_literature(path, report_path=None):
                        "pubmed_title": rec["title"] if rec else ""})
         if status != "loaded":
             continue
-        rows.append({"chunk_id": f"PMID{rec['pmid']}#0", "doc_id": f"PMID{rec['pmid']}", "collection": "research",
-                     "title": rec["title"], "url": f"https://pubmed.ncbi.nlm.nih.gov/{rec['pmid']}/",
-                     "year": int(rec["year"]) if (rec["year"] or "").isdigit() else None,
-                     "pub_type": ", ".join(rec["pub_types"][:2]), "tags": e.get("topic"),
-                     "text": f"{rec['title']}\n{rec['abstract']}"})
+        rows.append(_row_from_record(rec, e.get("topic")))
+    # Keep fetched metadata in a generated catalog so ingestion never rewrites the curated seed file.
+    source_fields = list(entries[0]) if entries else []
+    for col in ("pubmed_mesh_terms", "pubmed_author_keywords", "pubmed_authors"):
+        if col not in source_fields:
+            source_fields.append(col)
+    if entries:
+        enriched_path = Path(__file__).resolve().parents[1] / "data" / "literature_enriched.csv"
+        enriched_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(enriched_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=source_fields, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(entries)
     if report_path:
+        Path(report_path).parent.mkdir(parents=True, exist_ok=True)
         with open(report_path, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(report[0]))
             w.writeheader()
